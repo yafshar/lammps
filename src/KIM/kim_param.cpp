@@ -251,6 +251,8 @@ void KimParam::command(int narg, char **arg)
                                    &pkim);
       if (kim_error)
         error->all(FLERR, "Unable to create KIM Portable Model.");
+
+      KIM_Model_SetLogID(pkim, std::to_string(comm->me).c_str());
     }
   }
 
