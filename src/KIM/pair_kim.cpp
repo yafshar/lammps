@@ -848,6 +848,7 @@ void PairKIM::kim_free()
 void PairKIM::kim_init()
 {
   int kimerror;
+  std::string logID;
 
   // initialize KIM model
   int requestedUnitsAccepted;
@@ -861,7 +862,8 @@ void PairKIM::kim_init()
   else if (!requestedUnitsAccepted)
     error->all(FLERR,"KIM Model did not accept the requested unit system");
 
-  KIM_Model_SetLogID(pkim, std::to_string(comm->me).c_str());
+  logID = std::to_string(comm->me) + "_Model";
+  KIM_Model_SetLogID(pkim, logID.c_str());
 
   // check that the model does not require unknown capabilities
   kimerror = check_for_routine_compatibility();
@@ -875,7 +877,8 @@ void PairKIM::kim_init()
     error->all(FLERR,"KIM ComputeArgumentsCreate failed");
   } else kim_init_ok = true;
 
-  KIM_Model_SetLogID(pkim, std::to_string(comm->me).c_str());
+  logID = std::to_string(comm->me) + "_ComputeArguments";
+  KIM_Model_SetLogID(pkim, logID.c_str());
 
   // determine KIM Model capabilities (used in this function below)
   set_kim_model_has_flags();

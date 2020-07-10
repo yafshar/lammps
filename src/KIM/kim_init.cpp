@@ -97,6 +97,7 @@ using namespace LAMMPS_NS;
 #define LOG_DIR "."
 #define LOG_FILE "kim_log.log"
 
+namespace {
 int do_print(const std::string &msg)
 {
   MPI_Comm world = MPI_COMM_WORLD;
@@ -150,6 +151,7 @@ int do_print(const std::string &msg)
   }
   return false;
 }
+}  // namespace
 
 #undef LOG_DIR
 #undef LOG_FILE
@@ -246,13 +248,14 @@ void KimInit::determine_model_type_and_units(char * model_name,
   int units_accepted;
   KIM_Collections * kim_Coll;
   KIM_CollectionItemType itemType;
-  const std::string logID = std::to_string(comm->me);
+  std::string logID;
 
   int kim_error = KIM_Collections_Create(&kim_Coll);
   if (kim_error) {
     error->all(FLERR,"Unable to access KIM Collections to find Model.");
   }
 
+  logID = std::to_string(comm->me) + "_Collections";
   KIM_Collections_SetLogID(kim_Coll, logID.c_str());
 
   kim_error = KIM_Collections_GetItemType(kim_Coll, model_name, &itemType);
@@ -282,6 +285,7 @@ void KimInit::determine_model_type_and_units(char * model_name,
     model_type = MO;
 
     if (units_accepted) {
+      logID = std::to_string(comm->me) + "_Model";
       KIM_Model_SetLogID(pkim, logID.c_str());
       *model_units = new char[strlen(user_units)+1];
       strcpy(*model_units,user_units);
@@ -304,6 +308,7 @@ void KimInit::determine_model_type_and_units(char * model_name,
                                      &units_accepted,
                                      &pkim);
         if (units_accepted) {
+          logID = std::to_string(comm->me) + "_Model";
           KIM_Model_SetLogID(pkim, logID.c_str());
           *model_units = new char[strlen(systems[i])+1];
           strcpy(*model_units,systems[i]);
@@ -324,6 +329,7 @@ void KimInit::determine_model_type_and_units(char * model_name,
     if (kim_error)
       error->all(FLERR,"Unable to load KIM Simulator Model.");
 
+    logID = std::to_string(comm->me) + "_SimulatorModel";
     KIM_SimulatorModel_SetLogID(kim_SM, logID.c_str());
 
     model_type = SM;
@@ -382,7 +388,8 @@ void KimInit::do_init(char *model_name, char *user_units, char *model_units, KIM
   {
     kimerror = KIM_SimulatorModel_Create(model_name,&simulatorModel);
 
-    KIM_SimulatorModel_SetLogID(simulatorModel, std::to_string(comm->me).c_str());
+    const std::string logID = std::to_string(comm->me) + "_SimulatorModel";
+    KIM_SimulatorModel_SetLogID(simulatorModel, logID.c_str());
 
     char const *sim_name, *sim_version;
     KIM_SimulatorModel_GetSimulatorNameAndVersion(
@@ -578,7 +585,8 @@ void KimInit::write_log_cite(const std::string &model_name)
   int err = KIM_Collections_Create(&coll);
   if (err) return;
 
-  KIM_Collections_SetLogID(coll, std::to_string(comm->me).c_str());
+  const std::string logID = std::to_string(comm->me) + "_Collections";
+  KIM_Collections_SetLogID(coll, logID.c_str());
 
   int extent;
   if (model_type == MO) {
