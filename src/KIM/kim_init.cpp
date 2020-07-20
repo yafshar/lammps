@@ -79,6 +79,7 @@
 #include "fmt/format.h"
 
 extern "C" {
+#include "KIM_Log.h"
 #include "KIM_SimulatorHeaders.h"
 }
 
