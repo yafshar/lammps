@@ -66,6 +66,7 @@
 #include "input.h"
 #include "kim_units.h"
 #include "modify.h"
+#include "tokenizer.h"
 #include "universe.h"
 #include "variable.h"
 
@@ -371,11 +372,11 @@ void KimInit::do_init(char *model_name, char *user_units, char *model_units, KIM
       : (model_units_str == "si")                          ? "neighbor 2e-10 bin   # meters"
       : (model_units_str == "cgs")                         ? "neighbor 2e-8 bin   # centimeters"
                                                            : "neighbor 3.77945224 bin   # Bohr";
-  const std::string step_cmd = (model_units_str == "real") ? "timestep 1.0       # femtoseconds"
-      : (model_units_str == "metal")                       ? "timestep 1.0e-3    # picoseconds"
-      : (model_units_str == "si")                          ? "timestep 1e-15       # seconds"
-      : (model_units_str == "cgs")                         ? "timestep 1e-15      # seconds"
-                                   : "timestep 1.0              # femtoseconds";
+  const std::string step_cmd = (model_units_str == "real") ? "timestep 1.0   # femtoseconds"
+      : (model_units_str == "metal")                       ? "timestep 1.0e-3   # picoseconds"
+      : (model_units_str == "si")                          ? "timestep 1e-15   # seconds"
+      : (model_units_str == "cgs")                         ? "timestep 1e-15   # seconds"
+                                                           : "timestep 1.0   # femtoseconds";
   input->one(skin_cmd);
   input->one(step_cmd);
 
@@ -395,9 +396,49 @@ void KimInit::do_init(char *model_name, char *user_units, char *model_units, KIM
           KIM_SimulatorModel_GetSimulatorFieldLine(simulatorModel, i, j, &sim_value);
           input->one(sim_value);
         }
-        break;
+        // break;
+      } else if (sim_field_str == "force-field-type") {
+        for (int j = 0; j < sim_lines; ++j) {
+          KIM_SimulatorModel_GetSimulatorFieldLine(simulatorModel, i, j, &sim_value);
+          const std::string sim_value_str(sim_value);
+          if (sim_value_str == "bonded") input->variable->set("kim_bonded_ff equal 1");
+        }
+      }
+      else if (sim_field_str == "force-field-limits") {
+        for (int j = 0; j < sim_lines; ++j) {
+          KIM_SimulatorModel_GetSimulatorFieldLine(simulatorModel, i, j, &sim_value);
+          auto words = Tokenizer(sim_value).as_vector();
+          if (words.size() != 2)
+            error->all(FLERR, "Invalid KIM simulator field");
+          if (words[0] == "number-atom-types") {
+            if (input->variable->retrieve("kim_natomtypes"))
+              error->all(FLERR, "Invalid KIM simulator field");
+            input->variable->set(fmt::format("kim_natomtypes equal {}", words[1]));
+          } else if (words[0] == "number-bond-types") {
+            if (input->variable->retrieve("kim_nbondtypes"))
+              error->all(FLERR, "Invalid KIM simulator field");
+            input->variable->set(fmt::format("kim_nbondtypes equal {}", words[1]));
+          } else if (words[0] == "number-angle-types") {
+            if (input->variable->retrieve("kim_nangletypes"))
+              error->all(FLERR, "Invalid KIM simulator field");
+            input->variable->set(fmt::format("kim_nangletypes equal {}", words[1]));
+          } else if (words[0] == "number-dihedral-types") {
+            if (input->variable->retrieve("kim_ndihedraltypes"))
+              error->all(FLERR, "Invalid KIM simulator field");
+            input->variable->set(fmt::format("kim_ndihedraltypes equal {}", words[1]));
+          } else if (words[0] == "number-improper-types") {
+            if (input->variable->retrieve("kim_nimpropertypes"))
+              error->all(FLERR, "Invalid KIM simulator field");
+            input->variable->set(fmt::format("kim_nimpropertypes equal {}", words[1]));
+          } else
+            error->all(FLERR, "Unrecognized KEY {} in the force-field-limits", words[0]);
+        }
       }
     }
+
+    if (input->variable->retrieve("kim_bonded_ff"))
+      if (!input->variable->retrieve("kim_natomtypes"))
+        error->all(FLERR, "number-atom-types is not provided, illegal KIM simulator");
 
     // reset template map.
     KIM_SimulatorModel_OpenAndInitializeTemplateMap(simulatorModel);
