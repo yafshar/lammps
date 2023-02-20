@@ -61,6 +61,7 @@
 #include "error.h"
 
 // include KIM sub-command headers here
+#include "kim_create_box.h"
 #include "kim_init.h"
 #include "kim_interactions.h"
 #include "kim_param.h"
@@ -132,5 +133,9 @@ void KimCommand::command(int narg, char **arg)
     auto cmd = new KimQuery(lmp);
     cmd->command(narg, arg);
     delete cmd;
-  } else error->all(FLERR,"Unknown kim subcommand {}", subcmd);
+  } else if (subcmd == "create_box") {
+    auto cmd = new KimCreateBox(lmp);
+    cmd->command(narg, arg);
+    delete cmd;
+  } else error->all(FLERR, "Unknown kim subcommand {}", subcmd);
 }
