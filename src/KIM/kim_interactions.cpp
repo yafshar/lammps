@@ -89,8 +89,8 @@ using namespace LAMMPS_NS;
 
 void KimInteractions::command(int narg, char **arg)
 {
-    if (atom->lmaps) {
-      auto lmap = atom->lmaps[0];
+    if (atom->lmap) {
+      auto lmap = atom->lmap;
 
       // Atom Type Label
 
@@ -548,17 +548,17 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
 
     // Create a KIMLabelMap object, read and process the parameter file
 
-    KIMLabelMap klmaps(lmp);
+    KIMLabelMap klmap(lmp);
 
-    klmaps.process_file(words[3]);
+    klmap.process_file(words[3]);
 
-    auto lmap = atom->lmaps[0];
+    auto lmap = atom->lmap;
 
     // Atom Type Label
 
     for (auto tlb : lmap->typelabel) {
-      auto search = klmaps.typelabel.find(tlb);
-      if (search == klmaps.typelabel.end() && comm->me == 0)
+      auto search = klmap.typelabel.find(tlb);
+      if (search == klmap.typelabel.end() && comm->me == 0)
         error->warning(FLERR,
           fmt::format("Atom Type Label {} is not defined in the SM parameter file", tlb));
     }
@@ -568,8 +568,8 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
     for (auto tlb1 : lmap->typelabel) {
       for (auto tlb2 : lmap->typelabel) {
         auto key = fmt::format("{} {}", tlb1, tlb2);
-        auto search = klmaps.pair_coeff_map.find(key);
-        if (search != klmaps.pair_coeff_map.end()) {
+        auto search = klmap.pair_coeff_map.find(key);
+        if (search != klmap.pair_coeff_map.end()) {
           for (auto val : search->second) {
             input->one(fmt::format("pair_coeff {} {}", key, val));
           }
@@ -580,16 +580,16 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
     // Bond Type Label
 
     for (auto btlb : lmap->btypelabel) {
-      auto search = klmaps.bond_coeff_map.find(btlb);
-      if (search == klmaps.bond_coeff_map.end()) {
+      auto search = klmap.bond_coeff_map.find(btlb);
+      if (search == klmap.bond_coeff_map.end()) {
 
         // Add symmetry for bond coeffs (A-B ~ B-A)
 
         auto twords = Tokenizer(btlb, "-").as_vector();
         auto key = fmt::format("{}-{}", twords[1], twords[0]);
 
-        auto search2 = klmaps.bond_coeff_map.find(key);
-        if (search2 == klmaps.bond_coeff_map.end()) {
+        auto search2 = klmap.bond_coeff_map.find(key);
+        if (search2 == klmap.bond_coeff_map.end()) {
           if (comm->me == 0)
             error->warning(FLERR,
               fmt::format("Bond Type Label {} is not defined in the SM parameter file", btlb));
@@ -606,16 +606,16 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
     // Angle Type Label
 
     for (auto atlb : lmap->atypelabel) {
-      auto search = klmaps.angle_coeff_map.find(atlb);
-      if (search == klmaps.angle_coeff_map.end()) {
+      auto search = klmap.angle_coeff_map.find(atlb);
+      if (search == klmap.angle_coeff_map.end()) {
 
         // Add symmetry for angle coeffs (A-B-C ~ C-B-A)
 
         auto twords = Tokenizer(atlb, "-").as_vector();
         auto key = fmt::format("{}-{}-{}", twords[2], twords[1], twords[0]);
 
-        auto search2 = klmaps.angle_coeff_map.find(key);
-        if (search2 == klmaps.angle_coeff_map.end()) {
+        auto search2 = klmap.angle_coeff_map.find(key);
+        if (search2 == klmap.angle_coeff_map.end()) {
           if (comm->me == 0)
             error->warning(FLERR,
               fmt::format("Angle Type Label {} is not defined in the SM parameter file", atlb));
@@ -632,16 +632,16 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
     // Dihedral Type Label
 
     for (auto dtlb : lmap->dtypelabel) {
-      auto search = klmaps.dihedral_coeff_map.find(dtlb);
-      if (search == klmaps.dihedral_coeff_map.end()) {
+      auto search = klmap.dihedral_coeff_map.find(dtlb);
+      if (search == klmap.dihedral_coeff_map.end()) {
 
         // Add symmetry for dihedral coeffs (A-B-C-D ~ D-C-B-A)
 
         auto twords = Tokenizer(dtlb, "-").as_vector();
         auto key = fmt::format("{}-{}-{}-{}", twords[3], twords[2], twords[1], twords[0]);
 
-        auto search2 = klmaps.dihedral_coeff_map.find(key);
-        if (search2 == klmaps.dihedral_coeff_map.end()) {
+        auto search2 = klmap.dihedral_coeff_map.find(key);
+        if (search2 == klmap.dihedral_coeff_map.end()) {
           if (comm->me == 0)
             error->warning(FLERR,
               fmt::format("Dihedral Type Label {} is not defined in the SM parameter file", dtlb));
@@ -658,8 +658,8 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
     // Improper Type Label
 
     for (auto itlb : lmap->itypelabel)  {
-      auto search = klmaps.improper_coeff_map.find(itlb);
-      if (search == klmaps.improper_coeff_map.end()) {
+      auto search = klmap.improper_coeff_map.find(itlb);
+      if (search == klmap.improper_coeff_map.end()) {
 
         // No symmetry for improper at this time
         // TODO: Add symmetry for improper
