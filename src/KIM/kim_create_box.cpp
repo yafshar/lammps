@@ -76,7 +76,7 @@ KimCreateBox::KimCreateBox(LAMMPS *lmp) : Pointers(lmp) {}
 
 void KimCreateBox::command(int narg, char **arg)
 {
-  if (narg < 1) error->all(FLERR, "Illegal 'kim create_box' command");
+  if (narg < 1) utils::missing_cmd_args(FLERR, "kim create_box", error);
 
   // check if we had a kim init command by finding fix STORE/KIM
   if (!modify->get_fix_by_id("KIM_MODEL_STORE"))
