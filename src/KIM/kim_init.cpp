@@ -243,8 +243,7 @@ void KimInit::determine_model_type_and_units(char *model_name, char *user_units,
     for (int i = 0; i < sim_fields; ++i) {
       KIM_SimulatorModel_GetSimulatorFieldMetadata(simulatorModel, i, &sim_lines, &sim_field);
 
-      const std::string sim_field_str(sim_field);
-      if (sim_field_str == "units") {
+      if (strcmp(sim_field, "units") == 0) {
         KIM_SimulatorModel_GetSimulatorFieldLine(simulatorModel, i, 0, &sim_value);
         *model_units = utils::strdup(sim_value);
         break;
@@ -287,14 +286,13 @@ void KimInit::do_init(char *model_name, char *user_units, char *model_units, KIM
     char const *sim_name, *sim_version;
     KIM_SimulatorModel_GetSimulatorNameAndVersion(simulatorModel, &sim_name, &sim_version);
 
-    const std::string sim_name_str(sim_name);
-    if (sim_name_str != "LAMMPS") error->all(FLERR, "Incompatible KIM Simulator Model");
+    if (strcmp(sim_name, "LAMMPS") != 0) error->all(FLERR, "Incompatible KIM Simulator Model");
 
     if (comm->me == 0) {
       auto mesg = fmt::format("# Using KIM Simulator Model : {}\n"
                               "# For Simulator             : {} {}\n"
                               "# Running on                : LAMMPS {}\n#\n",
-                              model_name, sim_name_str, sim_version, lmp->version);
+                              model_name, sim_name, sim_version, lmp->version);
       utils::logmesg(lmp, mesg);
     }
 
@@ -340,20 +338,18 @@ void KimInit::do_init(char *model_name, char *user_units, char *model_units, KIM
     for (int i = 0; i < sim_fields; ++i) {
       KIM_SimulatorModel_GetSimulatorFieldMetadata(simulatorModel, i, &sim_lines, &sim_field);
 
-      const std::string sim_field_str(sim_field);
-      if (sim_field_str == "model-init") {
+      if (strcmp(sim_field, "model-init") == 0) {
         for (int j = 0; j < sim_lines; ++j) {
           KIM_SimulatorModel_GetSimulatorFieldLine(simulatorModel, i, j, &sim_value);
           input->one(sim_value);
         }
-      } else if (sim_field_str == "force-field-type") {
+      } else if (strcmp(sim_field, "force-field-type") == 0) {
         for (int j = 0; j < sim_lines; ++j) {
           KIM_SimulatorModel_GetSimulatorFieldLine(simulatorModel, i, j, &sim_value);
-          const std::string sim_value_str(sim_value);
-          if (sim_value_str == "bonded") input->variable->set("kim_bonded_ff equal 1");
+          if (strcmp(sim_value, "bonded") == 0) input->variable->set("kim_bonded_ff equal 1");
         }
       }
-      else if (sim_field_str == "force-field-limits") {
+      else if (strcmp(sim_field, "force-field-limits") == 0) {
         for (int j = 0; j < sim_lines; ++j) {
           KIM_SimulatorModel_GetSimulatorFieldLine(simulatorModel, i, j, &sim_value);
           auto words = Tokenizer(sim_value).as_vector();
