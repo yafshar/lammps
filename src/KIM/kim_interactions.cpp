@@ -580,7 +580,7 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
 
         // Add symmetry for improper coeffs
 
-        auto twords = Tokenizer(dtlb, "-").as_vector();
+        auto twords = Tokenizer(itlb, "-").as_vector();
 
         ImproperHybrid *hybrid = nullptr;
         int nstyles = 1;
