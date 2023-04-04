@@ -345,11 +345,11 @@ class KIMLabelMap : protected Pointers {
         if ((utils::is_type(words[1]) != 1) || (utils::is_type(words[2]) != 1)) {
           const std::string str = (utils::is_type(words[1]) != 1) ? words[1] : words[2];
           if (isdigit(str[0]))
-            error->all(FLERR, "Type label {} cannot start with a number (SM parameter file)", str);
+            error->all(FLERR, "Type label {} in SM parameter file cannot start with a number", str);
           if ((str[0] == '*') || (str[0] == '#'))
-            error->all(FLERR, "Type label {} cannot start with a {} character (SM parameter file)",
+            error->all(FLERR, "Type label {} in SM parameter file cannot start with a {} character",
                        str, str[0]);
-          error->all(FLERR, "The {} string is not a valid type label string (SM parameter file)",
+          error->all(FLERR, "The {} string in SM parameter file is not a valid type label string",
                      str);
         }
 
@@ -372,13 +372,13 @@ class KIMLabelMap : protected Pointers {
       if (words[0] == "bond_coeff") {
         auto twords = Tokenizer(words[1], "-").as_vector();
         if (twords.size() != 2)
-          error->all(FLERR, "Wrong bond type {} (SM parameter file)", words[1]);
+          error->all(FLERR, "Wrong bond type {} in SM parameter file", words[1]);
 
         for (auto word : twords) {
           auto search_atom = typelabel.find(word);
           if (search_atom == typelabel.end())
             error->all(FLERR, "Must specify the pairwise force field coefficients for {} {}", word,
-                       "before bond_coeff (SM parameter file)");
+                       "before bond_coeff in SM parameter file");
         }
 
         auto value = fmt::format("{}", fmt::join(words.begin() + 2, words.end(), " "));
@@ -389,13 +389,13 @@ class KIMLabelMap : protected Pointers {
       } else if (words[0] == "angle_coeff") {
         auto twords = Tokenizer(words[1], "-").as_vector();
         if (twords.size() != 3)
-          error->all(FLERR, "Wrong angle type {} (SM parameter file)", words[1]);
+          error->all(FLERR, "Wrong angle type {} in SM parameter file", words[1]);
 
         for (auto word : twords) {
           auto search_atom = typelabel.find(word);
           if (search_atom == typelabel.end())
             error->all(FLERR, "Must specify the pairwise force field coefficients for {} {}", word,
-                       "before angle_coeff (SM parameter file)");
+                       "before angle_coeff in SM parameter file");
         }
 
         auto value = fmt::format("{}", fmt::join(words.begin() + 2, words.end(), " "));
@@ -406,13 +406,13 @@ class KIMLabelMap : protected Pointers {
       } else if (words[0] == "dihedral_coeff") {
         auto twords = Tokenizer(words[1], "-").as_vector();
         if (twords.size() != 4)
-          error->all(FLERR, "Wrong dihedral type {} (SM parameter file)", words[1]);
+          error->all(FLERR, "Wrong dihedral type {} in SM parameter file", words[1]);
 
         for (auto word : twords) {
           auto search_atom = typelabel.find(word);
           if (search_atom == typelabel.end())
             error->all(FLERR, "Must specify the pairwise force field coefficients for {} {}", word,
-                       "before dihedral_coeff (SM parameter file)");
+                       "before dihedral_coeff in SM parameter file");
         }
 
         auto value = fmt::format("{}", fmt::join(words.begin() + 2, words.end(), " "));
@@ -423,13 +423,13 @@ class KIMLabelMap : protected Pointers {
       } else if (words[0] == "improper_coeff") {
         auto twords = Tokenizer(words[1], "-").as_vector();
         if (twords.size() != 4)
-          error->all(FLERR, "Wrong improper type {} (SM parameter file)", words[1]);
+          error->all(FLERR, "Wrong improper type {} in SM parameter file", words[1]);
 
         for (auto word : twords) {
           auto search_atom = typelabel.find(word);
           if (search_atom == typelabel.end())
             error->all(FLERR, "Must specify the pairwise force field coefficients for {} {}", word,
-                       "before improper_coeff (SM parameter file)");
+                       "before improper_coeff in SM parameter file");
         }
 
         auto value = fmt::format("{}", fmt::join(words.begin() + 2, words.end(), " "));
@@ -438,7 +438,7 @@ class KIMLabelMap : protected Pointers {
         improper_coeff_map[words[1]] = value;
 
       } else if (words[0] != "pair_coeff")
-        error->all(FLERR, "Invalid KEY {} in the SM parameter file", words[0]);
+        error->all(FLERR, "Invalid KEY {} in SM parameter file", words[0]);
     }
 
     natomtypes = static_cast<int>(typelabel.size());
@@ -470,14 +470,14 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
 
   const std::string set_key = words[1];
   if (set_key != "pair" && set_key != "charge" && set_key != "bonded_ff")
-    error->one(FLERR, "Unrecognized KEY {} for KIM_SET_TYPE_PARAMETERS command", set_key);
+    error->all(FLERR, "Unrecognized KEY {} for KIM_SET_TYPE_PARAMETERS command", set_key);
 
   if (set_key == "bonded_ff") {
     if (words[2] != "lammps")
-      error->one(FLERR, "Unrecognized format {} for KIM_SET_TYPE_PARAMETERS command", words[2]);
+      error->all(FLERR, "Unrecognized format {} for KIM_SET_TYPE_PARAMETERS command", words[2]);
 
     if (!atom->labelmapflag)
-      error->one(FLERR, "Use of 'kim interactions' before setting the 'type labels'");
+      error->all(FLERR, "Use of 'kim interactions' before setting the 'type labels'");
 
     // Create a KIMLabelMap object, read and process the parameter file
 
@@ -492,7 +492,7 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
     for (auto tlb : lmap->typelabel) {
       auto search = klmap.typelabel.find(tlb);
       if (search == klmap.typelabel.end())
-        error->one(FLERR, "Atom Type Label {} is not defined in the SM parameter file", tlb);
+        error->all(FLERR, "Atom Type Label {} is not defined in SM parameter file", tlb);
     }
 
     // Consider symmetry for pair coeffs (A B ~ B A)
@@ -519,7 +519,7 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
 
         search = klmap.bond_coeff_map.find(key);
         if (search == klmap.bond_coeff_map.end()) {
-          error->one(FLERR, "Bond Type Label {} is not defined in the SM parameter file", btlb);
+          error->all(FLERR, "Bond Type Label {} is not defined in SM parameter file", btlb);
         } else {
           input->one(fmt::format("bond_coeff {} {}", btlb, search->second));
         }
@@ -541,7 +541,7 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
 
         search = klmap.angle_coeff_map.find(key);
         if (search == klmap.angle_coeff_map.end()) {
-          error->one(FLERR, "Angle Type Label {} is not defined in the SM parameter file", atlb);
+          error->all(FLERR, "Angle Type Label {} is not defined in SM parameter file", atlb);
         } else {
           input->one(fmt::format("angle_coeff {} {}", atlb, search->second));
         }
@@ -563,7 +563,7 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
 
         search = klmap.dihedral_coeff_map.find(key);
         if (search == klmap.dihedral_coeff_map.end()) {
-          error->one(FLERR, "Dihedral Type Label {} is not defined in the SM parameter file", dtlb);
+          error->all(FLERR, "Dihedral Type Label {} is not defined in SM parameter file", dtlb);
         } else {
           input->one(fmt::format("dihedral_coeff {} {}", dtlb, search->second));
         }
@@ -635,22 +635,30 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
           if (found) break;
         }
 
-        if (!found) {
-          error->one(FLERR, "Improper Type Label {} is not defined in the SM parameter file", itlb);
-        }
+        if (!found)
+          error->all(FLERR, "Improper Type Label {} is not defined in SM parameter file", itlb);
+
       } else {
         input->one(fmt::format("improper_coeff {} {}", itlb, search->second));
       }
     }
+
   } else {
+    if (input->variable->retrieve("kim_bonded_ff")) {
+      if (words.size() > 3)
+        error->all(FLERR, "Unrecognized KEY {} for KIM_SET_TYPE_PARAMETERS command in bonded SMs",
+                   fmt::join(words.begin() + 3, words.end(), " "));
+    } else {
+      std::vector<std::string> species(words.begin() + 3, words.end());
+      if ((int)species.size() != atom->ntypes)
+        error->all(FLERR, "KIM_SET_TYPE_PARAMETERS command species {} do not match with {}{}",
+                   fmt::join(species.begin(), species.end(), " "), atom->ntypes, " system ntypes");
+
+      for (int ia = 0; ia < atom->ntypes; ++ia)
+        input->one(fmt::format("labelmap atom {} {}", ia + 1, species[ia]));
+    }
+
     std::string filename = words[2];
-    std::vector<std::string> species(words.begin() + 3, words.end());
-    if ((int)species.size() != atom->ntypes)
-      error->one(FLERR, "Incorrect args for KIM_SET_TYPE_PARAMETERS command");
-
-    for (int ia = 0; ia < atom->ntypes; ++ia)
-      input->one(fmt::format("labelmap atom {} {}", ia + 1, species[ia]));
-
     FILE *fp = nullptr;
     if (comm->me == 0) {
       fp = fopen(filename.c_str(), "r");
