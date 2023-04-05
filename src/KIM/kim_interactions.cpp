@@ -359,8 +359,17 @@ class KIMLabelMap : protected Pointers {
         auto key = fmt::format("{} {}", words[1], words[2]);
         auto value = fmt::format("{}", fmt::join(words.begin() + 3, words.end(), " "));
 
-        // pair_coeff command can override a previous setting for the same I,J pair
-        pair_coeff_map[key] = value;
+        auto search = pair_coeff_map.find(key);
+        if (search != pair_coeff_map.end()) {
+          bool new_value = true;
+          for (auto val : search->second) {
+            if (val == value) {
+              new_value = false;
+              break;
+            };
+          }
+          if (new_value) search->second.push_back(value);
+        } else pair_coeff_map[key].push_back(value);
       }
     }
 
@@ -383,9 +392,17 @@ class KIMLabelMap : protected Pointers {
 
         auto value = fmt::format("{}", fmt::join(words.begin() + 2, words.end(), " "));
 
-        // bond_coeff command can override a previous setting for the same bond type
-        bond_coeff_map[words[1]] = value;
-
+        auto search = bond_coeff_map.find(words[1]);
+        if (search != bond_coeff_map.end()) {
+          bool new_value = true;
+          for (auto val : search->second) {
+            if (val == value) {
+              new_value = false;
+              break;
+            };
+          }
+          if (new_value) search->second.push_back(value);
+        } else bond_coeff_map[words[1]].push_back(value);
       } else if (words[0] == "angle_coeff") {
         auto twords = Tokenizer(words[1], "-").as_vector();
         if (twords.size() != 3)
@@ -400,8 +417,17 @@ class KIMLabelMap : protected Pointers {
 
         auto value = fmt::format("{}", fmt::join(words.begin() + 2, words.end(), " "));
 
-        // angle_coeff command can override a previous setting for the same angle type
-        angle_coeff_map[words[1]] = value;
+        auto search = angle_coeff_map.find(words[1]);
+        if (search != angle_coeff_map.end()) {
+          bool new_value = true;
+          for (auto val : search->second) {
+            if (val == value) {
+              new_value = false;
+              break;
+            };
+          }
+          if (new_value) search->second.push_back(value);
+        } else angle_coeff_map[words[1]].push_back(value);
 
       } else if (words[0] == "dihedral_coeff") {
         auto twords = Tokenizer(words[1], "-").as_vector();
@@ -417,8 +443,17 @@ class KIMLabelMap : protected Pointers {
 
         auto value = fmt::format("{}", fmt::join(words.begin() + 2, words.end(), " "));
 
-        // dihedral_coeff command can override a previous setting for the same dihedral type
-        dihedral_coeff_map[words[1]] = value;
+        auto search = dihedral_coeff_map.find(words[1]);
+        if (search != dihedral_coeff_map.end()) {
+          bool new_value = true;
+          for (auto val : search->second) {
+            if (val == value) {
+              new_value = false;
+              break;
+            };
+          }
+          if (new_value) search->second.push_back(value);
+        } else dihedral_coeff_map[words[1]].push_back(value);
 
       } else if (words[0] == "improper_coeff") {
         auto twords = Tokenizer(words[1], "-").as_vector();
@@ -434,8 +469,17 @@ class KIMLabelMap : protected Pointers {
 
         auto value = fmt::format("{}", fmt::join(words.begin() + 2, words.end(), " "));
 
-        // improper_coeff command can override a previous setting for the same improper type
-        improper_coeff_map[words[1]] = value;
+        auto search = improper_coeff_map.find(words[1]);
+        if (search != improper_coeff_map.end()) {
+          bool new_value = true;
+          for (auto val : search->second) {
+            if (val == value) {
+              new_value = false;
+              break;
+            };
+          }
+          if (new_value) search->second.push_back(value);
+        } else improper_coeff_map[words[1]].push_back(value);
 
       } else if (words[0] != "pair_coeff")
         error->all(FLERR, "Invalid KEY {} in SM parameter file", words[0]);
@@ -455,11 +499,13 @@ class KIMLabelMap : protected Pointers {
   int nimpropertypes{0};  // number of improper dihedral types with no symmetry
 
   std::unordered_set<std::string> typelabel;
-  std::unordered_map<std::string, std::string> pair_coeff_map;
-  std::unordered_map<std::string, std::string> bond_coeff_map;
-  std::unordered_map<std::string, std::string> angle_coeff_map;
-  std::unordered_map<std::string, std::string> dihedral_coeff_map;
-  std::unordered_map<std::string, std::string> improper_coeff_map;
+
+  // An array is used in the map for special cases like class2 (e.g. angle_coeff 1, angle_coeff 1 bb)
+  std::unordered_map<std::string, std::vector<std::string>> pair_coeff_map;
+  std::unordered_map<std::string, std::vector<std::string>> bond_coeff_map;
+  std::unordered_map<std::string, std::vector<std::string>> angle_coeff_map;
+  std::unordered_map<std::string, std::vector<std::string>> dihedral_coeff_map;
+  std::unordered_map<std::string, std::vector<std::string>> improper_coeff_map;
 };
 
 /* ---------------------------------------------------------------------- */
@@ -501,8 +547,12 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
       for (auto tlb2 : lmap->typelabel) {
         auto key = fmt::format("{} {}", tlb1, tlb2);
         auto search = klmap.pair_coeff_map.find(key);
-        if (search != klmap.pair_coeff_map.end())
-          input->one(fmt::format("pair_coeff {} {}", key, search->second));
+        if (search != klmap.pair_coeff_map.end()) {
+          // pair_coeff command can override a previous setting for the same I,J pair
+          for (auto val : search->second) {
+            input->one(fmt::format("pair_coeff {} {}", key, val));
+          }
+        }
       }
     }
 
@@ -517,14 +567,18 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
         auto twords = Tokenizer(btlb, "-").as_vector();
         auto key = fmt::format("{}-{}", twords[1], twords[0]);
 
-        search = klmap.bond_coeff_map.find(key);
+        auto search = klmap.bond_coeff_map.find(key);
         if (search == klmap.bond_coeff_map.end()) {
           error->all(FLERR, "Bond Type Label {} is not defined in SM parameter file", btlb);
         } else {
-          input->one(fmt::format("bond_coeff {} {}", btlb, search->second));
+          // bond_coeff command can override a previous setting for the same bond type
+          for (auto val : search->second)
+            input->one(fmt::format("bond_coeff {} {}", btlb, val));
         }
       } else {
-        input->one(fmt::format("bond_coeff {} {}", btlb, search->second));
+        // bond_coeff command can override a previous setting for the same bond type
+        for (auto val : search->second)
+          input->one(fmt::format("bond_coeff {} {}", btlb, val));
       }
     }
 
@@ -534,7 +588,7 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
       auto search = klmap.angle_coeff_map.find(atlb);
       if (search == klmap.angle_coeff_map.end()) {
 
-        // Add symmetry for angle coeffs (A-B-C ~ C-B-A)
+        // Add angle_coeff based on symmetry for angle coeffs (A-B-C ~ C-B-A)
 
         auto twords = Tokenizer(atlb, "-").as_vector();
         auto key = fmt::format("{}-{}-{}", twords[2], twords[1], twords[0]);
@@ -543,10 +597,14 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
         if (search == klmap.angle_coeff_map.end()) {
           error->all(FLERR, "Angle Type Label {} is not defined in SM parameter file", atlb);
         } else {
-          input->one(fmt::format("angle_coeff {} {}", atlb, search->second));
+          // angle_coeff command can override a previous setting for the same angle type
+          for (auto val : search->second)
+            input->one(fmt::format("angle_coeff {} {}", atlb, val));
         }
       } else {
-        input->one(fmt::format("angle_coeff {} {}", atlb, search->second));
+        // angle_coeff command can override a previous setting for the same angle type
+        for (auto val : search->second)
+          input->one(fmt::format("angle_coeff {} {}", atlb, val));
       }
     }
 
@@ -556,7 +614,7 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
       auto search = klmap.dihedral_coeff_map.find(dtlb);
       if (search == klmap.dihedral_coeff_map.end()) {
 
-        // Add symmetry for dihedral coeffs (A-B-C-D ~ D-C-B-A)
+        // Add dihedral_coeff based on symmetry for dihedral coeffs (A-B-C-D ~ D-C-B-A)
 
         auto twords = Tokenizer(dtlb, "-").as_vector();
         auto key = fmt::format("{}-{}-{}-{}", twords[3], twords[2], twords[1], twords[0]);
@@ -565,10 +623,14 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
         if (search == klmap.dihedral_coeff_map.end()) {
           error->all(FLERR, "Dihedral Type Label {} is not defined in SM parameter file", dtlb);
         } else {
-          input->one(fmt::format("dihedral_coeff {} {}", dtlb, search->second));
+          // dihedral_coeff command can override a previous setting for the same dihedral type
+          for (auto val : search->second)
+            input->one(fmt::format("dihedral_coeff {} {}", dtlb, val));
         }
       } else {
-        input->one(fmt::format("dihedral_coeff {} {}", dtlb, search->second));
+        // dihedral_coeff command can override a previous setting for the same dihedral type
+        for (auto val : search->second)
+          input->one(fmt::format("dihedral_coeff {} {}", dtlb, val));
       }
     }
 
@@ -578,7 +640,7 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
       auto search = klmap.improper_coeff_map.find(itlb);
       if (search == klmap.improper_coeff_map.end()) {
 
-        // Add symmetry for improper coeffs
+        // Add improper_coeff based on symmetry for improper coeffs
 
         auto twords = Tokenizer(itlb, "-").as_vector();
 
@@ -612,7 +674,9 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
             }
             search = klmap.improper_coeff_map.find(key);
             if (search != klmap.improper_coeff_map.end()) {
-              input->one(fmt::format("improper_coeff {} {}", itlb, search->second));
+              // improper_coeff command can override a previous setting for the same improper type
+              for (auto val : search->second)
+                input->one(fmt::format("improper_coeff {} {}", itlb, val));
               found = true;
             }
           } else if (nonsymind.size() == 3) {
@@ -626,7 +690,9 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
               }
               search = klmap.improper_coeff_map.find(key);
               if (search != klmap.improper_coeff_map.end()) {
-                input->one(fmt::format("improper_coeff {} {}", itlb, search->second));
+                // improper_coeff command can override a previous setting for the same improper type
+                for (auto val : search->second)
+                  input->one(fmt::format("improper_coeff {} {}", itlb, val));
                 found = true;
                 break;
               }
@@ -634,12 +700,12 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
           }
           if (found) break;
         }
-
         if (!found)
           error->all(FLERR, "Improper Type Label {} is not defined in SM parameter file", itlb);
-
       } else {
-        input->one(fmt::format("improper_coeff {} {}", itlb, search->second));
+        // improper_coeff command can override a previous setting for the same improper type
+        for (auto val : search->second)
+          input->one(fmt::format("improper_coeff {} {}", itlb, val));
       }
     }
 
