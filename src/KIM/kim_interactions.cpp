@@ -496,7 +496,7 @@ class KIMLabelMap : protected Pointers {
   }
 
   void check_SM_parameter_file(){
-    std::string emsg = "Symmetrically equivalent {} {} and {} with different coefficients "
+    std::string emsg = "Symmetrically equivalent {} {} and {} have different coefficients "
                        "in the SM parameter file";
 
     for (auto it : pair_coeff_map) {
