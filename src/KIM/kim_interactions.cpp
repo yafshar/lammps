@@ -496,57 +496,74 @@ class KIMLabelMap : protected Pointers {
   }
 
   void check_SM_parameter_file(){
+    std::string emsg = "Symmetrically equivalent {} {} and {} with different coefficients "
+                       "in the SM parameter file";
+
     for (auto it : pair_coeff_map) {
-      auto words = Tokenizer(it.first).as_vector();
+      auto twords = Tokenizer(it.first).as_vector();
       // symmetry for pair coeffs (A B ~ B A)
-      auto key = fmt::format("{} {}", words[1], words[0]);
+      auto key = fmt::format("{} {}", twords[1], twords[0]);
       if (it.first == key) continue;
       auto search = pair_coeff_map.find(key);
       if (search != pair_coeff_map.end()) {
-        error->all(FLERR, "Symmetrically equivalent pair_coeff {} and {} in the SM parameter file",
-          it.first, key);
+        if (it.second.size() != search->second.size())
+          error->all(FLERR, emsg, "pair_coeff", it.first, key);
+        for (auto v1 = it.second.begin(), v2 = search->second.begin(); v1 != it.second.end();
+             ++v1, ++v2) {
+          if (*v1 != *v2) error->all(FLERR, emsg, "pair_coeff", it.first, key);
+        }
       }
     }
 
     for (auto it : bond_coeff_map) {
-      auto words = Tokenizer(it.first, "-").as_vector();
+      auto twords = Tokenizer(it.first, "-").as_vector();
       // symmetry for bond coeffs (A-B ~ B-A)
-      auto key = fmt::format("{}-{}", words[1], words[0]);
+      auto key = fmt::format("{}-{}", twords[1], twords[0]);
       if (it.first == key) continue;
       auto search = bond_coeff_map.find(key);
       if (search != bond_coeff_map.end()) {
-        error->all(FLERR, "Symmetrically equivalent bond_coeff {} and {} in the SM parameter file",
-          it.first, key);
+        if (it.second.size() != search->second.size())
+          error->all(FLERR, emsg, "bond_coeff", it.first, key);
+        for (auto v1 = it.second.begin(), v2 = search->second.begin(); v1 != it.second.end();
+             ++v1, ++v2) {
+          if (*v1 != *v2) error->all(FLERR, emsg, "bond_coeff", it.first, key);
+        }
       }
     }
 
     for (auto it : angle_coeff_map) {
-      auto words = Tokenizer(it.first, "-").as_vector();
+      auto twords = Tokenizer(it.first, "-").as_vector();
       // symmetry for angle coeffs (A-B-C ~ C-B-A)
-      auto key = fmt::format("{}-{}-{}", words[2], words[1], words[0]);
+      auto key = fmt::format("{}-{}-{}", twords[2], twords[1], twords[0]);
       if (it.first == key) continue;
       auto search = angle_coeff_map.find(key);
       if (search != angle_coeff_map.end()) {
-        error->all(FLERR, "Symmetrically equivalent angle_coeff {} and {} in the SM parameter file",
-          it.first, key);
+        if (it.second.size() != search->second.size())
+          error->all(FLERR, emsg, "angle_coeff", it.first, key);
+        for (auto v1 = it.second.begin(), v2 = search->second.begin(); v1 != it.second.end();
+             ++v1, ++v2) {
+          if (*v1 != *v2) error->all(FLERR, emsg, "angle_coeff", it.first, key);
+        }
       }
     }
 
     for (auto it : dihedral_coeff_map) {
-      auto words = Tokenizer(it.first, "-").as_vector();
+      auto twords = Tokenizer(it.first, "-").as_vector();
       // symmetry for dihedral coeffs (A-B-C-D ~ D-C-B-A)
-      auto key = fmt::format("{}-{}-{}-{}", words[3], words[2], words[1], words[0]);
+      auto key = fmt::format("{}-{}-{}-{}", twords[3], twords[2], twords[1], twords[0]);
       if (it.first == key) continue;
       auto search = dihedral_coeff_map.find(key);
       if (search != dihedral_coeff_map.end()) {
-        error->all(FLERR, "Symmetrically equivalent dihedral_coeff {} and {} in the {}",
-          it.first, key, "SM parameter file");
+        if (it.second.size() != search->second.size())
+          error->all(FLERR, emsg, "dihedral_coeff", it.first, key);
+        for (auto v1 = it.second.begin(), v2 = search->second.begin(); v1 != it.second.end();
+             ++v1, ++v2) {
+          if (*v1 != *v2) error->all(FLERR, emsg, "dihedral_coeff", it.first, key);
+        }
       }
     }
 
-    for (auto it : improper_coeff_map) {
-      auto words = Tokenizer(it.first, "-").as_vector();
-
+    if (nimpropertypes) {
       ImproperHybrid *hybrid = nullptr;
       int nstyles = 1;
 
@@ -555,50 +572,55 @@ class KIMLabelMap : protected Pointers {
         nstyles = hybrid->nstyles;
       }
 
-      bool found = false;
-      std::string key = "";
+      for (auto it : improper_coeff_map) {
+        auto twords = Tokenizer(it.first, "-").as_vector();
 
-      for (int style = 0; style < nstyles; ++style) {
-        auto improper = hybrid ? hybrid->styles[style] : force->improper;
-        // Find the non symmetry indices
-        std::vector<int> nonsymind;
-        for (int i = 0; i < 4; ++i)
-          if (improper->symmatoms[i] == 0) nonsymind.push_back(i);
-        found = false;
-        if (nonsymind.size() == 2) {
-          constexpr int d[2] = {1, 0};
-          key = "";
-          for (int j = 0, c = 0; j < 4; ++j) {
-            if (improper->symmatoms[j] == 0) key += words[nonsymind[d[c++]]];
-            else key += words[j];
-            if (j != 3) key += "-";
-          }
-          if (it.first == key) continue;
-          auto search = improper_coeff_map.find(key);
-          if (search != improper_coeff_map.end()) found = true;
-        } else if (nonsymind.size() == 3) {
-          constexpr int d[5][3] = {{1, 0, 2}, {2, 0, 1}, {0, 2, 1}, {1, 2, 0}, {2, 1, 0}};
-          for (int i = 0; i < 5; ++i) {
-            key = "";
+        for (int style = 0; style < nstyles; ++style) {
+          auto improper = hybrid ? hybrid->styles[style] : force->improper;
+          // Find the non symmetry indices
+          std::vector<int> nonsymind;
+          for (int i = 0; i < 4; ++i)
+            if (improper->symmatoms[i] == 0) nonsymind.push_back(i);
+          if (nonsymind.size() == 2) {
+            constexpr int d[2] = {1, 0};
+            std::string key = "";
             for (int j = 0, c = 0; j < 4; ++j) {
-              if (improper->symmatoms[j] == 0) key += words[nonsymind[d[i][c++]]];
-              else key += words[j];
+              if (improper->symmatoms[j] == 0) key += twords[nonsymind[d[c++]]];
+              else key += twords[j];
               if (j != 3) key += "-";
             }
             if (it.first == key) continue;
             auto search = improper_coeff_map.find(key);
             if (search != improper_coeff_map.end()) {
-              found = true;
-              break;
+              if (it.second.size() != search->second.size())
+                error->all(FLERR, emsg, "improper_coeff", it.first, key);
+              for (auto v1 = it.second.begin(), v2 = search->second.begin(); v1 != it.second.end();
+                   ++v1, ++v2) {
+                if (*v1 != *v2) error->all(FLERR, emsg, "improper_coeff", it.first, key);
+              }
+            }
+          } else {
+            constexpr int d[5][3] = {{1, 0, 2}, {2, 0, 1}, {0, 2, 1}, {1, 2, 0}, {2, 1, 0}};
+            for (int i = 0; i < 5; ++i) {
+              std::string key = "";
+              for (int j = 0, c = 0; j < 4; ++j) {
+                if (improper->symmatoms[j] == 0) key += twords[nonsymind[d[i][c++]]];
+                else key += twords[j];
+                if (j != 3) key += "-";
+              }
+              if (it.first == key) continue;
+              auto search = improper_coeff_map.find(key);
+              if (search != improper_coeff_map.end()) {
+                if (it.second.size() != search->second.size())
+                  error->all(FLERR, emsg, "improper_coeff", it.first, key);
+                for (auto v1 = it.second.begin(), v2 = search->second.begin(); v1 != it.second.end();
+                     ++v1, ++v2) {
+                  if (*v1 != *v2) error->all(FLERR, emsg, "improper_coeff", it.first, key);
+                }
+              }
             }
           }
         }
-        if (found) break;
-      }
-
-      if (found) {
-        error->all(FLERR, "Symmetrically equivalent improper_coeff {} and {} in the {}",
-          it.first, key, "SM parameter file");
       }
     }
   }
@@ -644,12 +666,14 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
 
     auto lmap = atom->lmap;
 
+    std::string emsg = "{} Type Label {} is not defined in the SM parameter file";
+
     // Atom Type Label
 
     for (auto tlb : lmap->typelabel) {
       auto search = klmap.typelabel.find(tlb);
       if (search == klmap.typelabel.end())
-        error->all(FLERR, "Atom Type Label {} is not defined in the SM parameter file", tlb);
+        error->all(FLERR, emsg, "Atom", tlb);
     }
 
     // Consider symmetry for pair coeffs (A B ~ B A)
@@ -678,9 +702,11 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
         auto twords = Tokenizer(btlb, "-").as_vector();
         auto key = fmt::format("{}-{}", twords[1], twords[0]);
 
+        if (key == btlb) error->all(FLERR, emsg, "Bond", btlb);
+
         auto search = klmap.bond_coeff_map.find(key);
         if (search == klmap.bond_coeff_map.end()) {
-          error->all(FLERR, "Bond Type Label {} is not defined in SM parameter file", btlb);
+          error->all(FLERR, emsg, "Bond", btlb);
         } else {
           // bond_coeff command can override a previous setting for the same bond type
           for (auto val : search->second)
@@ -704,9 +730,11 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
         auto twords = Tokenizer(atlb, "-").as_vector();
         auto key = fmt::format("{}-{}-{}", twords[2], twords[1], twords[0]);
 
+        if (key == atlb) error->all(FLERR, emsg, "Angle", atlb);
+
         search = klmap.angle_coeff_map.find(key);
         if (search == klmap.angle_coeff_map.end()) {
-          error->all(FLERR, "Angle Type Label {} is not defined in SM parameter file", atlb);
+          error->all(FLERR, emsg, "Angle", atlb);
         } else {
           // angle_coeff command can override a previous setting for the same angle type
           for (auto val : search->second)
@@ -730,9 +758,11 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
         auto twords = Tokenizer(dtlb, "-").as_vector();
         auto key = fmt::format("{}-{}-{}-{}", twords[3], twords[2], twords[1], twords[0]);
 
+        if (key == dtlb) error->all(FLERR, emsg, "Dihedral", dtlb);
+
         search = klmap.dihedral_coeff_map.find(key);
         if (search == klmap.dihedral_coeff_map.end()) {
-          error->all(FLERR, "Dihedral Type Label {} is not defined in the SM parameter file", dtlb);
+          error->all(FLERR, emsg, "Dihedral", dtlb);
         } else {
           // dihedral_coeff command can override a previous setting for the same dihedral type
           for (auto val : search->second)
@@ -746,77 +776,82 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
     }
 
     // Improper Type Label
+    if (klmap.nimpropertypes) {
+      ImproperHybrid *hybrid = nullptr;
+      int nstyles = 1;
 
-    for (auto itlb : lmap->itypelabel)  {
-      auto search = klmap.improper_coeff_map.find(itlb);
-      if (search == klmap.improper_coeff_map.end()) {
+      if (utils::strmatch(force->improper_style, "^hybrid")) {
+        hybrid = dynamic_cast<ImproperHybrid *>(force->improper);
+        nstyles = hybrid->nstyles;
+      }
 
-        // Add improper_coeff based on symmetry for improper coeffs
+      for (auto itlb : lmap->itypelabel)  {
+        auto search = klmap.improper_coeff_map.find(itlb);
+        if (search == klmap.improper_coeff_map.end()) {
+          // Add improper_coeff based on symmetry for improper coeffs
 
-        auto twords = Tokenizer(itlb, "-").as_vector();
+          auto twords = Tokenizer(itlb, "-").as_vector();
+          bool found = false;
+          for (int style = 0; style < nstyles; ++style) {
+            auto improper = hybrid ? hybrid->styles[style] : force->improper;
 
-        ImproperHybrid *hybrid = nullptr;
-        int nstyles = 1;
+            // Find the non symmetry indices
+            std::vector<int> nonsymind;
+            for (int i = 0; i < 4; ++i)
+              if (improper->symmatoms[i] == 0) nonsymind.push_back(i);
 
-        if (utils::strmatch(force->improper_style, "^hybrid")) {
-          hybrid = dynamic_cast<ImproperHybrid *>(force->improper);
-          nstyles = hybrid->nstyles;
-        }
+            found = false;
 
-        bool found = false;
-
-        for (int style = 0; style < nstyles; ++style) {
-          auto improper = hybrid ? hybrid->styles[style] : force->improper;
-
-          // Find the non symmetry indices
-          std::vector<int> nonsymind;
-          for (int i = 0; i < 4; ++i)
-            if (improper->symmatoms[i] == 0) nonsymind.push_back(i);
-
-          found = false;
-
-          if (nonsymind.size() == 2) {
-            constexpr int d[2] = {1, 0};
-            std::string key = "";
-            for (int j = 0, c = 0; j < 4; ++j) {
-              if (improper->symmatoms[j] == 0) key += twords[nonsymind[d[c++]]];
-              else key += twords[j];
-              if (j != 3) key += "-";
-            }
-            search = klmap.improper_coeff_map.find(key);
-            if (search != klmap.improper_coeff_map.end()) {
-              // improper_coeff command can override a previous setting for the same improper type
-              for (auto val : search->second)
-                input->one(fmt::format("improper_coeff {} {}", itlb, val));
-              found = true;
-            }
-          } else if (nonsymind.size() == 3) {
-            constexpr int d[5][3] = {{1, 0, 2}, {2, 0, 1}, {0, 2, 1}, {1, 2, 0}, {2, 1, 0}};
-            for (int i = 0; i < 5; ++i) {
+            if (nonsymind.size() == 2) {
+              constexpr int d[2] = {1, 0};
               std::string key = "";
               for (int j = 0, c = 0; j < 4; ++j) {
-                if (improper->symmatoms[j] == 0) key += twords[nonsymind[d[i][c++]]];
+                if (improper->symmatoms[j] == 0) key += twords[nonsymind[d[c++]]];
                 else key += twords[j];
                 if (j != 3) key += "-";
               }
+
+              if (key == itlb) continue;
+
               search = klmap.improper_coeff_map.find(key);
               if (search != klmap.improper_coeff_map.end()) {
                 // improper_coeff command can override a previous setting for the same improper type
                 for (auto val : search->second)
                   input->one(fmt::format("improper_coeff {} {}", itlb, val));
                 found = true;
-                break;
+              }
+            } else {
+              constexpr int d[5][3] = {{1, 0, 2}, {2, 0, 1}, {0, 2, 1}, {1, 2, 0}, {2, 1, 0}};
+              for (int i = 0; i < 5; ++i) {
+                std::string key = "";
+                for (int j = 0, c = 0; j < 4; ++j) {
+                  if (improper->symmatoms[j] == 0) key += twords[nonsymind[d[i][c++]]];
+                  else key += twords[j];
+                  if (j != 3) key += "-";
+                }
+
+                if (key == itlb) continue;
+
+                search = klmap.improper_coeff_map.find(key);
+                if (search != klmap.improper_coeff_map.end()) {
+                  // improper_coeff command can override a previous setting for the same improper type
+                  for (auto val : search->second)
+                    input->one(fmt::format("improper_coeff {} {}", itlb, val));
+                  found = true;
+                  break;
+                }
               }
             }
+
+            if (found) break;
           }
-          if (found) break;
+
+          if (!found) error->all(FLERR, emsg, "Improper", itlb);
+        } else {
+          // improper_coeff command can override a previous setting for the same improper type
+          for (auto val : search->second)
+            input->one(fmt::format("improper_coeff {} {}", itlb, val));
         }
-        if (!found)
-          error->all(FLERR, "Improper Type Label {} is not defined in the SM parameter file", itlb);
-      } else {
-        // improper_coeff command can override a previous setting for the same improper type
-        for (auto val : search->second)
-          input->one(fmt::format("improper_coeff {} {}", itlb, val));
       }
     }
 
