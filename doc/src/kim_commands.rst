@@ -131,8 +131,9 @@ Syntax
 * user_units = the LAMMPS :doc:`units <units>` style assumed in the LAMMPS
   input script
 * unitarg = *unit_conversion_mode* (optional)
-* typeargs = atom type to species mapping (one entry per atom type) or
-  *fixed_types* for models with a preset fixed mapping
+* typeargs = atom type to species mapping (one entry per atom type),
+  *fixed_types* for models with a preset fixed mapping, or omitted for LAMMPS 
+  Simulator Models that use :doc:`type labels <Howto_type_labels>`
 
 Examples
 --------
@@ -149,6 +150,8 @@ Examples
    kim init Sim_LAMMPS_IFF_PCFF_HeinzMishraLinEmami_2015Ver1v5_FccmetalsMineralsSolventsPolymers__SM_039297821658_000 real
    kim interactions fixed_types
 
+   kim init Sim_LAMMPS_CoreShell_MitchellFincham_1993_NaCl__SM_672022050407_000 metal
+   kim interactions
 
 See the *examples/kim* directory for example input scripts that use KIM PMs
 and KIM SMs.
@@ -310,14 +313,22 @@ The second and final step in using an OpenKIM IM is to execute the
 *kim interactions* command.  This command must be preceded by a *kim init*
 command and a command that defines the number of atom types *N* (such as
 :doc:`create_box <create_box>`).
-The *kim interactions* command has one argument *typeargs*\ .  This argument
+The *kim interactions* command has one optional argument *typeargs*\ .  This argument
 contains either a list of *N* chemical species, which defines a mapping between
 atom types in LAMMPS to the available species in the OpenKIM IM, or the keyword
 *fixed_types* for models that have a preset fixed mapping (i.e.  the mapping
 between LAMMPS atom types and chemical species is defined by the model and
 cannot be changed).  In the latter case, the user must consult the model
 documentation to see how many atom types there are and how they map to the
-chemical species.
+chemical species. 
+
+If the *typeargs* argument is omitted, the model is assumed to use
+:doc:`type labels <Howto_type_labels>`. The user must consult the model
+documentation to see atom type labels that the model supports, and label the atoms
+in the simulation accordingly. These models may also contain bonds, angles, dihedrals,
+or impropers, which must be correspond to the supported atom type labels connected by
+'-'. For example, a the bond type connecting an atom labeled ClC and an atom labeled
+ClS must be labeled ClC-ClS.
 
 For example, consider an OpenKIM IM that supports Si and C species.  If the
 LAMMPS simulation has four atom types, where the first three are Si, and the
@@ -328,6 +339,12 @@ fourth is C, the following *kim interactions* command would be used:
    kim interactions Si Si Si C
 
 Alternatively, for a model with a fixed mapping the command would be:
+
+.. code-block:: LAMMPS
+
+   kim interactions fixed_types
+
+Finally, for a model that uses type labels, the command would be:
 
 .. code-block:: LAMMPS
 
