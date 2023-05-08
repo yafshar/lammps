@@ -348,7 +348,7 @@ Finally, for a model that uses type labels, the command would be:
 
 .. code-block:: LAMMPS
 
-   kim interactions fixed_types
+   kim interactions
 
 The *kim interactions* command performs all the necessary steps to set up the
 OpenKIM IM selected in the *kim init* command.  The specific actions depend on
