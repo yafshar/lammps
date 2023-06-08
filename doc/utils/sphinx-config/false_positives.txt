@@ -355,6 +355,7 @@ bpls
 bpm
 BPM
 br
+Braems
 Branduardi
 Branicio
 brennan
@@ -589,6 +590,7 @@ createAtoms
 CreateIDs
 crespi
 Crespi
+Creuze
 Critchley
 crossterm
 Crowson
@@ -1346,6 +1348,7 @@ Haak
 Hafskjold
 halfstepback
 halgren
+Hallil
 Halperin
 Halver
 Hamaker
@@ -1559,6 +1562,7 @@ invertibility
 ionicities
 ionizable
 ionocovalent
+iOS
 iostreams
 iparam
 ipi
@@ -1617,6 +1621,7 @@ Izumi
 Izvekov
 izz
 Izz
+Jacobian
 Jacobsen
 Jadhao
 Jadhav
@@ -2023,6 +2028,7 @@ Marchetti
 Marchi
 Mariella
 Marinica
+Markland
 Marrink
 Marroquin
 Marsaglia
@@ -2973,11 +2979,13 @@ qx
 qy
 qz
 Rackers
+radi
 radialscreened
 radialscreenedspin
 radialspin
 radian
 radians
+radj
 Rafferty
 rahman
 Rahman
@@ -3543,6 +3551,7 @@ ters
 tersoff
 Tersoff
 tesselation
+tesselations
 Tetot
 tex
 tfac
@@ -3588,6 +3597,7 @@ THz
 Tigran
 Tij
 Tildesley
+Timan
 timeI
 timespan
 timestamp
@@ -3729,6 +3739,7 @@ Umin
 un
 unary
 uncomment
+uncompress
 uncompute
 underprediction
 undump
@@ -4082,4 +4093,5 @@ zu
 zx
 zy
 Zybin
+Zykova
 zz

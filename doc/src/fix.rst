@@ -256,7 +256,6 @@ accelerated styles exist.
 * :doc:`langevin/drude <fix_langevin_drude>` - Langevin temperature control of Drude oscillators
 * :doc:`langevin/eff <fix_langevin_eff>` - Langevin temperature control for the electron force field model
 * :doc:`langevin/spin <fix_langevin_spin>` - Langevin temperature control for a spin or spin-lattice system
-* :doc:`latte <fix_latte>` - wrapper on LATTE density-functional tight-binding code
 * :doc:`lb/fluid <fix_lb_fluid>` - lattice-Boltzmann fluid on a uniform mesh
 * :doc:`lb/momentum <fix_lb_momentum>` - :doc:`fix momentum <fix_momentum>` replacement for use with a lattice-Boltzmann fluid
 * :doc:`lb/viscous <fix_lb_viscous>` - :doc:`fix viscous <fix_viscous>` replacement for use with a lattice-Boltzmann fluid
@@ -324,7 +323,8 @@ accelerated styles exist.
 * :doc:`pafi <fix_pafi>` - constrained force averages on hyper-planes to compute free energies (PAFI)
 * :doc:`pair <fix_pair>` - access per-atom info from pair styles
 * :doc:`phonon <fix_phonon>` - calculate dynamical matrix from MD simulations
-* :doc:`pimd/nvt <fix_pimd>` - Feynman path integral molecular dynamics with Nose-Hoover thermostat
+* :doc:`pimd/langevin <fix_pimd>` - Feynman path-integral molecular dynamics with stochastic thermostat
+* :doc:`pimd/nvt <fix_pimd>` - Feynman path-integral molecular dynamics with Nose-Hoover thermostat
 * :doc:`planeforce <fix_planeforce>` - constrain atoms to move in a plane
 * :doc:`plumed <fix_plumed>` - wrapper on PLUMED free energy library
 * :doc:`poems <fix_poems>` - constrain clusters of atoms to move as coupled rigid bodies
