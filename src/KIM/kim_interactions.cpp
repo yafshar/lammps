@@ -92,10 +92,12 @@ using namespace LAMMPS_NS;
 
 void KimInteractions::command(int narg, char **arg)
 {
+  if (input->variable->retrieve("kim_bonded_ff"))
+    if (narg > 0) error->all(FLERR, "Illegal 'kim interactions' command");
+  else if (narg < 1) utils::missing_cmd_args(FLERR, "kim interactions", error);
+
   if (atom->lmap) {
     // If the atom type labels have been defined, kim interactions should not accept arguments
-
-    if (narg > 0) error->all(FLERR, "Illegal 'kim interactions' command");
 
     auto lmap = atom->lmap;
 
@@ -126,8 +128,7 @@ void KimInteractions::command(int narg, char **arg)
     if (lmap->nimpropertypes && !lmap->is_complete(Atom::IMPROPER))
       error->all(FLERR, "Label map is incomplete. All improper types must be assigned an "
                  "improper label.");
-
-  } else if (narg < 1) utils::missing_cmd_args(FLERR, "kim interactions", error);
+  }
 
   if (!domain->box_exist)
     error->all(FLERR, "Use of 'kim interactions' before simulation box is defined");
