@@ -857,18 +857,20 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
     }
 
   } else {
+    std::vector<std::string> species;
     if (input->variable->retrieve("kim_bonded_ff")) {
       if (words.size() > 3)
         error->all(FLERR, "Unrecognized KEY {} for KIM_SET_TYPE_PARAMETERS command in bonded SMs",
                    fmt::join(words.begin() + 3, words.end(), " "));
     } else {
-      std::vector<std::string> species(words.begin() + 3, words.end());
+      for (auto s = words.begin() + 3; s != words.end(); ++s) species.emplace_back(*s);
       if ((int)species.size() != atom->ntypes)
         error->all(FLERR, "KIM_SET_TYPE_PARAMETERS command species {} do not match with {}{}",
                    fmt::join(species.begin(), species.end(), " "), atom->ntypes, " system ntypes");
 
       for (int ia = 0; ia < atom->ntypes; ++ia)
-        input->one(fmt::format("labelmap atom {} {}", ia + 1, species[ia]));
+        if (!(atom->lmap && (atom->lmap->find(species[ia],Atom::ATOM) == ia + 1)))
+          input->one(fmt::format("labelmap atom {} {}", ia + 1, species[ia]));
     }
 
     std::string filename = words[2];
@@ -897,11 +899,26 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
       auto trimmed = utils::trim_comment(line);
       if (trimmed.find_first_not_of(" \t\n\r") == std::string::npos) continue;
 
+      words = utils::split_words(trimmed);
       if (set_key == "pair") {
-        input->one(fmt::format("pair_coeff {}", trimmed));
+        if (species.empty()) {
+          input->one(fmt::format("pair_coeff {}", trimmed));
+        } else {
+          for (int ia = 0; ia < atom->ntypes; ++ia) {
+            for (int ib = ia; ib < atom->ntypes; ++ib)
+              if (((species[ia] == words[0]) && (species[ib] == words[1]))
+                || ((species[ib] == words[0]) && (species[ia] == words[1])))
+                input->one(fmt::format("pair_coeff {}", trimmed));
+          }
+        }
       } else {
-        words = utils::split_words(trimmed);
-        input->one(fmt::format("set type {} charge {}", words[0], words[1]));
+        if (species.empty()) {
+          input->one(fmt::format("set type {} charge {}", words[0], words[1]));
+        } else {
+          for (int ia = 0; ia < atom->ntypes; ++ia)
+            if (species[ia] == words[0])
+              input->one(fmt::format("set type {} charge {}", words[0], words[1]));
+        }
       }
     }
   }
