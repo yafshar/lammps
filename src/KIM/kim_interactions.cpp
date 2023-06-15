@@ -649,7 +649,7 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
   auto words = utils::split_words(input_line);
 
   const std::string set_key = words[1];
-  if (set_key != "pair" && set_key != "charge" && set_key != "bonded_ff")
+  if (set_key != "pair" && set_key != "charge" && set_key != "mass" && set_key != "bonded_ff")
     error->all(FLERR, "Unrecognized KEY {} for KIM_SET_TYPE_PARAMETERS command", set_key);
 
   if (set_key == "bonded_ff") {
@@ -912,10 +912,14 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
               || ((species[ib] == words[0]) && (species[ia] == words[1])))
               input->one(fmt::format("pair_coeff {}", trimmed));
         }
-      } else {
+      } else if (set_key == "charge") {
         for (int ia = 0; ia < atom->ntypes; ++ia)
           if (species[ia] == words[0])
             input->one(fmt::format("set type {} charge {}", words[0], words[1]));
+      } else {
+        for (int ia = 0; ia < atom->ntypes; ++ia)
+          if (species[ia] == words[0])
+            input->one(fmt::format("mass {} {}", words[0], words[1]));
       }
     }
   }
