@@ -862,6 +862,11 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
       if (words.size() > 3)
         error->all(FLERR, "Unrecognized KEY {} for KIM_SET_TYPE_PARAMETERS command in bonded SMs",
                    fmt::join(words.begin() + 3, words.end(), " "));
+      species.resize(atom->ntypes);
+      for (auto s : atom->lmap->typelabel) {
+        int ia = atom->lmap->find(s,Atom::ATOM);
+        species[ia-1] = s;
+      }
     } else {
       for (auto s = words.begin() + 3; s != words.end(); ++s) species.emplace_back(*s);
       if ((int)species.size() != atom->ntypes)
@@ -901,24 +906,16 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
 
       words = utils::split_words(trimmed);
       if (set_key == "pair") {
-        if (species.empty()) {
-          input->one(fmt::format("pair_coeff {}", trimmed));
-        } else {
-          for (int ia = 0; ia < atom->ntypes; ++ia) {
-            for (int ib = ia; ib < atom->ntypes; ++ib)
-              if (((species[ia] == words[0]) && (species[ib] == words[1]))
-                || ((species[ib] == words[0]) && (species[ia] == words[1])))
-                input->one(fmt::format("pair_coeff {}", trimmed));
-          }
+        for (int ia = 0; ia < atom->ntypes; ++ia) {
+          for (int ib = ia; ib < atom->ntypes; ++ib)
+            if (((species[ia] == words[0]) && (species[ib] == words[1]))
+              || ((species[ib] == words[0]) && (species[ia] == words[1])))
+              input->one(fmt::format("pair_coeff {}", trimmed));
         }
       } else {
-        if (species.empty()) {
-          input->one(fmt::format("set type {} charge {}", words[0], words[1]));
-        } else {
-          for (int ia = 0; ia < atom->ntypes; ++ia)
-            if (species[ia] == words[0])
-              input->one(fmt::format("set type {} charge {}", words[0], words[1]));
-        }
+        for (int ia = 0; ia < atom->ntypes; ++ia)
+          if (species[ia] == words[0])
+            input->one(fmt::format("set type {} charge {}", words[0], words[1]));
       }
     }
   }
