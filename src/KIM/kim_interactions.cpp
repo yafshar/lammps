@@ -92,10 +92,12 @@ using namespace LAMMPS_NS;
 
 void KimInteractions::command(int narg, char **arg)
 {
+  if (input->variable->retrieve("kim_bonded_ff")) {
+    if (narg > 0) error->all(FLERR, "Illegal 'kim interactions' command");
+  } else if (narg < 1) utils::missing_cmd_args(FLERR, "kim interactions", error);
+
   if (atom->lmap) {
     // If the atom type labels have been defined, kim interactions should not accept arguments
-
-    if (narg > 0) error->all(FLERR, "Illegal 'kim interactions' command");
 
     auto lmap = atom->lmap;
 
@@ -126,8 +128,7 @@ void KimInteractions::command(int narg, char **arg)
     if (lmap->nimpropertypes && !lmap->is_complete(Atom::IMPROPER))
       error->all(FLERR, "Label map is incomplete. All improper types must be assigned an "
                  "improper label.");
-
-  } else if (narg < 1) utils::missing_cmd_args(FLERR, "kim interactions", error);
+  }
 
   if (!domain->box_exist)
     error->all(FLERR, "Use of 'kim interactions' before simulation box is defined");
@@ -648,7 +649,7 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
   auto words = utils::split_words(input_line);
 
   const std::string set_key = words[1];
-  if (set_key != "pair" && set_key != "charge" && set_key != "bonded_ff")
+  if (set_key != "pair" && set_key != "charge" && set_key != "mass" && set_key != "bonded_ff")
     error->all(FLERR, "Unrecognized KEY {} for KIM_SET_TYPE_PARAMETERS command", set_key);
 
   if (set_key == "bonded_ff") {
@@ -856,18 +857,25 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
     }
 
   } else {
+    std::vector<std::string> species;
     if (input->variable->retrieve("kim_bonded_ff")) {
       if (words.size() > 3)
         error->all(FLERR, "Unrecognized KEY {} for KIM_SET_TYPE_PARAMETERS command in bonded SMs",
                    fmt::join(words.begin() + 3, words.end(), " "));
+      species.resize(atom->ntypes);
+      for (auto s : atom->lmap->typelabel) {
+        int ia = atom->lmap->find(s,Atom::ATOM);
+        species[ia-1] = s;
+      }
     } else {
-      std::vector<std::string> species(words.begin() + 3, words.end());
+      for (auto s = words.begin() + 3; s != words.end(); ++s) species.emplace_back(*s);
       if ((int)species.size() != atom->ntypes)
         error->all(FLERR, "KIM_SET_TYPE_PARAMETERS command species {} do not match with {}{}",
                    fmt::join(species.begin(), species.end(), " "), atom->ntypes, " system ntypes");
 
       for (int ia = 0; ia < atom->ntypes; ++ia)
-        input->one(fmt::format("labelmap atom {} {}", ia + 1, species[ia]));
+        if (!(atom->lmap && (atom->lmap->find(species[ia],Atom::ATOM) == ia + 1)))
+          input->one(fmt::format("labelmap atom {} {}", ia + 1, species[ia]));
     }
 
     std::string filename = words[2];
@@ -896,11 +904,22 @@ void KimInteractions::KIM_SET_TYPE_PARAMETERS(const std::string &input_line) con
       auto trimmed = utils::trim_comment(line);
       if (trimmed.find_first_not_of(" \t\n\r") == std::string::npos) continue;
 
+      words = utils::split_words(trimmed);
       if (set_key == "pair") {
-        input->one(fmt::format("pair_coeff {}", trimmed));
+        for (int ia = 0; ia < atom->ntypes; ++ia) {
+          for (int ib = ia; ib < atom->ntypes; ++ib)
+            if (((species[ia] == words[0]) && (species[ib] == words[1]))
+              || ((species[ib] == words[0]) && (species[ia] == words[1])))
+              input->one(fmt::format("pair_coeff {}", trimmed));
+        }
+      } else if (set_key == "charge") {
+        for (int ia = 0; ia < atom->ntypes; ++ia)
+          if (species[ia] == words[0])
+            input->one(fmt::format("set type {} charge {}", words[0], words[1]));
       } else {
-        words = utils::split_words(trimmed);
-        input->one(fmt::format("set type {} charge {}", words[0], words[1]));
+        for (int ia = 0; ia < atom->ntypes; ++ia)
+          if (species[ia] == words[0])
+            input->one(fmt::format("mass {} {}", words[0], words[1]));
       }
     }
   }
