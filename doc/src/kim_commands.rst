@@ -131,8 +131,9 @@ Syntax
 * user_units = the LAMMPS :doc:`units <units>` style assumed in the LAMMPS
   input script
 * unitarg = *unit_conversion_mode* (optional)
-* typeargs = atom type to species mapping (one entry per atom type) or
-  *fixed_types* for models with a preset fixed mapping
+* typeargs = atom type to species mapping (one entry per atom type),
+  *fixed_types* for models with a preset fixed mapping, or omitted for LAMMPS 
+  Simulator Models that use :doc:`type labels <Howto_type_labels>`
 
 Examples
 --------
@@ -149,6 +150,8 @@ Examples
    kim init Sim_LAMMPS_IFF_PCFF_HeinzMishraLinEmami_2015Ver1v5_FccmetalsMineralsSolventsPolymers__SM_039297821658_000 real
    kim interactions fixed_types
 
+   kim init Sim_LAMMPS_CoreShell_MitchellFincham_1993_NaCl__SM_672022050407_000 metal
+   kim interactions
 
 See the *examples/kim* directory for example input scripts that use KIM PMs
 and KIM SMs.
@@ -310,14 +313,14 @@ The second and final step in using an OpenKIM IM is to execute the
 *kim interactions* command.  This command must be preceded by a *kim init*
 command and a command that defines the number of atom types *N* (such as
 :doc:`create_box <create_box>`).
-The *kim interactions* command has one argument *typeargs*\ .  This argument
+The *kim interactions* command has one optional argument *typeargs*\ .  This argument
 contains either a list of *N* chemical species, which defines a mapping between
 atom types in LAMMPS to the available species in the OpenKIM IM, or the keyword
 *fixed_types* for models that have a preset fixed mapping (i.e.  the mapping
 between LAMMPS atom types and chemical species is defined by the model and
 cannot be changed).  In the latter case, the user must consult the model
 documentation to see how many atom types there are and how they map to the
-chemical species.
+chemical species. 
 
 For example, consider an OpenKIM IM that supports Si and C species.  If the
 LAMMPS simulation has four atom types, where the first three are Si, and the
@@ -332,6 +335,16 @@ Alternatively, for a model with a fixed mapping the command would be:
 .. code-block:: LAMMPS
 
    kim interactions fixed_types
+
+If the *typeargs* argument is omitted as below, the model is assumed to use
+:doc:`type labels <Howto_type_labels>`. These are generally bonded force fields
+archived in OpenKIM after July 2023. See 
+:ref:`Using OpenKIM Bonded SMs with LAMMPS type labels <bonded>` for more information
+regarding their usage.
+
+.. code-block:: LAMMPS
+
+   kim interactions
 
 The *kim interactions* command performs all the necessary steps to set up the
 OpenKIM IM selected in the *kim init* command.  The specific actions depend on
@@ -408,6 +421,109 @@ the *kim interactions* command executes the following LAMMPS input commands:
    terms in the interactions require different settings if a periodic boundary
    changes to a non-periodic one.  In other cases, the second call to
    *kim interactions* does not affect any other settings.
+
+.. _bonded:
+
+Using OpenKIM Bonded SMs with LAMMPS type labels
+""""""""""""""""""""""""""""""""""""""""""""""""
+
+As of July 2023, bonded LAMMPS SMs archived in OpenKIM use the LAMMPS 
+:doc:`type labels <Howto_type_labels>` feature. A simple example is found in
+*examples/kim/in.kim-bonded.coreshell*, which replicates the core-shell model
+example in *examples/coreshell/in.coreshell* using the model 
+`Sim_LAMMPS_CoreShell_MitchellFincham_1993_NaCl__SM_672022050407_000 <https://openkim.org/id/Sim_LAMMPS_CoreShell_MitchellFincham_1993_NaCl__SM_672022050407_000>`_
+
+As seen on that webpage, KIM SMs that use type labels have a metadata field 
+`Atom Type Labels`, which informs the user what labels are allowed to be present in the
+simulation box. These models may also support bonds, angles, dihedrals,
+or impropers, which must labeled corresponding to the supported atom type labels connected by
+'-'. For example, a the bond type connecting an atom labeled *ClC* and an atom labeled
+*ClS* must be labeled *ClC-ClS*.
+
+Bonded LAMMPS SMs archived in OpenKIM encapsulate the LAMMPS commands to set up supported bonded
+and non-bonded interactions and assign them to type labels. Particle masses are also encapsulated in the SM. 
+Therefore, the user only needs to provide the atom positions and bonding topology, and assign 
+correct atom and bond type labels. For example, the core/shell example uses the following data file,
+which does not contain pair or bond coefficients, or particle masses 
+(compare to :doc:`Adiabatic core/shell model <Howto_coreshell>` and *examples/coreshell/data.coreshell*):
+
+.. parsed-literal::
+
+   432   atoms
+   216   bonds
+   0     angles
+   0     dihedrals
+
+   4     atom types
+   2     bond types
+   0     angle types
+   0     dihedral types
+
+   0.0 24.09597 xlo xhi
+   0.0 24.09597 ylo yhi
+   0.0 24.09597 zlo zhi
+
+   Atom Type Labels
+
+   1 NaC # Na core
+   2 ClC # Cl core
+   3 NaS # Na shell
+   4 ClS # Cl shell
+
+   Bond Type Labels
+
+   1 NaC-NaS
+   2 ClC-ClS
+
+   Atoms 
+
+   1    1    2      0.0    0.0000000000   0.0000000000   0.0000000000
+   2    1    4      0.0    0.0000000000   0.0000000000   0.0000000000
+   3    2    2      0.0    0.0000000000   4.0159950000   4.0159950000
+   4    2    4      0.0    0.0000000000   4.0159950000   4.0159950000
+   (...)
+
+   Bonds
+
+   1     2     1     2   
+   2     2     3     4   
+   (...)
+
+In the case of this SM, charges are also provided. Although the user is required to specify charges in the data file for
+*atom_style full*, they are dummy charges (here set to 0) that will be overwritten.
+If any *_style*, *_coeff*, masses or charges are set before *kim interactions* is called, they will be overwritten.
+Similar to other KIM models, because the setup of interactions is encapsulated in the *kim init* and *kim interactions* commands,
+input scripts are simplified. For the core-shell model, the set-up section of the script looks like this
+(compare to :doc:`Adiabatic core/shell model <Howto_coreshell>` and *examples/coreshell/in.coreshell*):
+
+.. code-block:: LAMMPS
+
+   # ------------------------ INITIALIZATION ----------------------------
+
+   dimension	3
+   boundary	p p p
+
+   # ----------------------- ATOM DEFINITION ----------------------------
+
+   kim init Sim_LAMMPS_CoreShell_MitchellFincham_1993_NaCl__SM_672022050407_000 metal
+
+   # ------------------------ READ DATA ---------------------------------
+
+   read_data data.kim-bonded.coreshell
+
+   # It is up to the user to define these groups and all the commands that use them
+   group cores type 1 2
+   group shells type 3 4
+
+   kim interactions
+
+Note that, as the comment points out, it is up to the user to assign the atoms to core and shell
+groups and issue the required commands that use those groups in the simulation. This demonstrates
+that, because of the diverse nature of bonded force fields and their application, 
+**it is imperative that the user read the description and disclaimer of the model on OpenKIM.org**
+to understand which interactions, parameters and fixes are included in the model, and which
+must be specified by the user. For example, other bonded SMs may not include charges and require
+the user to specify them in the data file.
 
 .. _query:
 

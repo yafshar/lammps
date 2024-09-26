@@ -1,0 +1,340 @@
+LAMMPS (15 Jun 2023 - Development - stable_3Mar2020-16308-g8dc3538f6c)
+OMP_NUM_THREADS environment is not set. Defaulting to 1 thread. (src/comm.cpp:98)
+  using 1 OpenMP thread(s) per MPI task
+# Testsystem for core-shell model compared to Mitchel and Finchham using KIM
+#
+# Description:
+#
+# Modified from non-KIM example in examples/coreshell/in.coreshell
+# Thermo outputs should be identical between this KIM example and the above.
+# The extra data and commands for "output via chunk method" are omitted.
+#
+# This example demonstrates usage of OpenKIM Simulator Models (SM) for bonded
+# force fields using LAMMPS type labels. Compared to the original core-shell
+# example, the SM initializes and provides parameters for pair and bonded interactions,
+# as well as charges and masses. The user, therefore, only needs to provide
+# the atom positions and bonding topology, and assign correct atom and bond type labels.
+# The user must also define core/shell atom groups and the required temp/cs compute and
+# thermostat fix_modify.
+#
+# KIM bond, angle, dihedral and improper type labels must always be dash-separated
+# atom type labels, i.e. the bond between atom types `NaS` and `NaC` must have the label `NaS-NaC`
+# or `NaC-NaS`.
+#
+# Documentation for the specific SM, including an enumeration of supported atom types, is here:
+# `https://openkim.org/id/Sim_LAMMPS_CoreShell_MitchellFincham_1993_NaCl__SM_672022050407_000`
+#
+# More information about the KIM SM interface and LAMMPS type labels:
+# `https://docs.lammps.org/kim_commands.html`
+# `https://docs.lammps.org/Howto_type_labels.html`
+#
+# Original file: Hendrik Heenen, June 2014
+# KIM version: ilia Nikiforov, July 2023
+#
+# Requirement:
+#
+# This example requires that the KIM Simulator Model (SM)
+# `Sim_LAMMPS_CoreShell_MitchellFincham_1993_NaCl__SM_672022050407_000`
+# is installed.  This can be done with the command
+#   kim-api-collections-management install user Sim_LAMMPS_CoreShell_MitchellFincham_1993_NaCl__SM_672022050407_000
+# If this command does not work, you may need to setup your PATH to find the utility.
+# If you installed the kim-api using the LAMMPS CMake build, you can do the following
+# (where the current working directory is assumed to be the LAMMPS build directory)
+#   source ./kim_build-prefix/bin/kim-api-activate
+# If you installed the kim-api using the LAMMPS Make build, you can do the following
+# (where the current working directory is assumed to be the LAMMPS src directory)
+#   source ../lib/kim/installed-kim-api-X.Y.Z/bin/kim-api-activate
+# (where you should relplace X.Y.Z with the appropriate kim-api version number).
+#
+# Or, see `https://openkim.org/doc/obtaining-models` for alternative options.
+#
+
+# ------------------------ INITIALIZATION ----------------------------
+
+dimension	3
+boundary	p p p
+
+# ----------------------- ATOM DEFINITION ----------------------------
+
+kim init Sim_LAMMPS_CoreShell_MitchellFincham_1993_NaCl__SM_672022050407_000 metal
+#=== KIM is looking for 'Portable Models' in these directories ===
+#  1: .
+#  2: /home/openkim/.kim-api/2.3.0+GNU.GNU.GNU.2022-12-07-18-54-28/portable-models-dir
+#  3: /usr/local/lib/kim-api/portable-models
+#=== KIM is looking for 'Simulator Models' in these directories ===
+#  1: .
+#  2: /home/openkim/.kim-api/2.3.0+GNU.GNU.GNU.2022-12-07-18-54-28/simulator-models-dir
+#  3: /usr/local/lib/kim-api/simulator-models
+#=== BEGIN kim init ==========================================
+# Using KIM Simulator Model : Sim_LAMMPS_CoreShell_MitchellFincham_1993_NaCl__SM_672022050407_000
+# For Simulator             : LAMMPS 28 Mar 2023 - Update 1
+# Running on                : LAMMPS 15 Jun 2023
+#
+units metal
+neighbor 2.0 bin   # Angstroms
+timestep 1.0e-3    # picoseconds
+atom_style full
+#=== END kim init ============================================
+
+
+# ------------------------ READ DATA ---------------------------------
+
+read_data data.kim-bonded.coreshell
+Reading data file ...
+  orthogonal box = (0 0 0) to (24.09597 24.09597 24.09597)
+  1 by 2 by 2 MPI processor grid
+  reading atom labelmap ...
+  reading bond labelmap ...
+  reading atoms ...
+  432 atoms
+  scanning bonds ...
+  1 = max bonds/atom
+  reading bonds ...
+  216 bonds
+Finding 1-2 1-3 1-4 neighbors ...
+  special bond factors lj:    0        0        0       
+  special bond factors coul:  0        0        0       
+     1 = max # of 1-2 neighbors
+     0 = max # of 1-3 neighbors
+     0 = max # of 1-4 neighbors
+     1 = max # of special neighbors
+  special bonds CPU = 0.000 seconds
+  read_data CPU = 0.007 seconds
+
+# It is up to the user to define these groups and all the commands that use them
+group cores type 1 2
+216 atoms in group cores
+group shells type 3 4
+216 atoms in group shells
+
+kim interactions
+#=== BEGIN kim interactions ==================================
+variable kim_update equal 0
+variable kim_periodic equal 1
+comm_modify vel yes
+bond_style harmonic
+if "${kim_periodic} != 0" then "pair_style   born/coul/long/cs 20.0 20.0"
+pair_style   born/coul/long/cs 20.0 20.0
+if "${kim_periodic} != 0" then "kspace_style ewald 1.0e-6"
+kspace_style ewald 1.0e-6
+if "${kim_periodic} == 0" then "kspace_style none"
+if "${kim_periodic} == 2" then "kspace_modify slab 3.0"
+if "${kim_periodic} == 0" then "variable kim_cutoff equal ((lx+xy+xz)^2+(ly+yz)^2+(lz)^2)^(1/2)"
+if "${kim_periodic} == 0" then "pair_style born/coul/dsf/cs 0.1 20.0 ${kim_cutoff}"
+pair_coeff NaC NaC 0.0 1.000 0.00 0.00 0.00
+pair_coeff NaC ClC 0.0 1.000 0.00 0.00 0.00
+pair_coeff NaC NaS 0.0 1.000 0.00 0.00 0.00
+pair_coeff NaC ClS 0.0 1.000 0.00 0.00 0.00
+pair_coeff ClC ClC 0.0 1.000 0.00 0.00 0.00
+pair_coeff ClC NaS 0.0 1.000 0.00 0.00 0.00
+pair_coeff ClC ClS 0.0 1.000 0.00 0.00 0.00
+pair_coeff NaS NaS 487.0 0.23768 0.00 1.05 0.50
+pair_coeff NaS ClS 145134.0 0.23768 0.00 6.99 8.70
+pair_coeff ClS ClS 405774.0 0.23768 0.00 72.40 145.40
+bond_coeff NaC-NaS 63.014 0.0
+bond_coeff ClC-ClS 25.724 0.0
+set type NaC charge 1.5056
+Setting atom values ...
+  108 settings made for charge
+set type ClC charge 1.5005
+Setting atom values ...
+  108 settings made for charge
+set type NaS charge -0.5056
+Setting atom values ...
+  108 settings made for charge
+set type ClS charge -2.5005
+Setting atom values ...
+  108 settings made for charge
+mass NaC 20.690784
+mass ClC 31.90500
+mass NaS 2.298976
+mass ClS 3.54500
+#=== END kim interactions ====================================
+
+
+# ------------------------ Equilibration Run -------------------------------
+
+reset_timestep 0
+
+thermo 50
+thermo_style custom step etotal pe ke temp press              epair evdwl ecoul elong ebond fnorm fmax vol
+
+compute CStemp all temp/cs cores shells
+compute thermo_press_lmp all pressure thermo_temp # press for correct kinetic scalar
+
+thermo_modify temp CStemp press thermo_press_lmp
+
+# velocity bias option
+
+velocity all create 1427 134 dist gaussian mom yes rot no bias yes temp CStemp
+Ewald initialization ...
+  using 12-bit tables for long-range coulomb (src/kspace.cpp:342)
+  G vector (1/distance) = 0.17525654
+  estimated absolute RMS force accuracy = 1.4956298e-05
+  estimated relative force accuracy = 1.0386574e-06
+  KSpace vectors: actual max1d max3d = 257 5 665
+                  kxmax kymax kzmax  = 5 5 5
+Generated 0 of 6 mixed pair_coeff terms from geometric mixing rule
+Neighbor list info ...
+  update: every = 1 steps, delay = 0 steps, check = yes
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 22
+  ghost atom cutoff = 22
+  binsize = 11, bins = 3 3 3
+  1 neighbor lists, perpetual/occasional/extra = 1 0 0
+  (1) pair born/coul/long/cs, perpetual
+      attributes: half, newton on
+      pair build: half/bin/newton
+      stencil: half/bin/3d
+      bin: standard
+velocity all scale 1427 temp CStemp
+
+# thermostating using the core/shell decoupling
+
+fix thermoberendsen all temp/berendsen 1427 1427 0.4
+fix nve all nve
+fix_modify thermoberendsen temp CStemp
+
+# 2 fmsec timestep
+
+timestep 0.002
+run 500
+
+CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE
+
+Your simulation uses code contributions which should be cited:
+
+- OpenKIM Project: doi:10.1007/s11837-011-0102-6
+
+@Article{tadmor:elliott:2011,
+ author = {E. B. Tadmor and R. S. Elliott and J. P. Sethna and R. E. Miller and C. A. Becker},
+ title = {The potential of atomistic simulations and the {K}nowledgebase of {I}nteratomic {M}odels},
+ journal = {{JOM}},
+ year =    2011,
+ volume =  63,
+ number =  17,
+ pages =   {17},
+ doi =     {10.1007/s11837-011-0102-6}
+}
+
+- OpenKIM potential: https://openkim.org/cite/SM_672022050407_000#item-citation
+
+CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE
+
+Ewald initialization ...
+  using 12-bit tables for long-range coulomb (src/kspace.cpp:342)
+  G vector (1/distance) = 0.17525654
+  estimated absolute RMS force accuracy = 1.4956298e-05
+  estimated relative force accuracy = 1.0386574e-06
+  KSpace vectors: actual max1d max3d = 257 5 665
+                  kxmax kymax kzmax  = 5 5 5
+Generated 0 of 6 mixed pair_coeff terms from geometric mixing rule
+Per MPI rank memory allocation (min/avg/max) = 15.77 | 15.77 | 15.77 Mbytes
+   Step         TotEng         PotEng         KinEng          Temp          Press          E_pair         E_vdwl         E_coul         E_long         E_bond         Fnorm           Fmax          Volume    
+         0  -635.44099     -675.09865      39.657659      1427          -20613.612     -675.09865      1.6320365      1018.8211     -1695.5518      0              2.9851021e-14  4.2188475e-15  13990.5      
+        50  -634.17349     -666.17818      32.004686      1151.6234     -4029.8408     -667.9562       37.809075      989.23282     -1694.9981      1.778024       9.7133823      2.1917969      13990.5      
+       100  -631.93518     -661.91228      29.977104      1078.665      -3171.805      -664.06721      39.333371      991.36936     -1694.7699      2.1549314      11.09144       2.1704352      13990.5      
+       150  -630.16821     -663.12421      32.956001      1185.8545      143.24642     -665.4804       46.253735      982.97455     -1694.7087      2.3561827      11.467864      2.165151       13990.5      
+       200  -628.6223      -663.64929      35.026994      1260.375      -1622.4425     -665.96884      41.661826      986.81675     -1694.4474      2.3195531      10.597708      2.9538112      13990.5      
+       250  -627.31146     -662.01843      34.706967      1248.8595     -1509.7146     -664.50329      42.101591      987.90193     -1694.5068      2.4848613      10.392643      1.6933335      13990.5      
+       300  -626.5766      -660.97478      34.398177      1237.7483     -1637.8253     -663.48071      41.653261      989.53241     -1694.6664      2.5059273      11.204556      2.2814909      13990.5      
+       350  -625.91971     -665.35829      39.438581      1419.1169     -1351.502      -667.61664      41.582495      985.53387     -1694.733       2.2583463      10.831571      1.8963671      13990.5      
+       400  -625.24853     -660.77578      35.527247      1278.3755     -423.68693     -663.12558      43.892266      987.75058     -1694.7684      2.3497983      11.523592      2.1776023      13990.5      
+       450  -624.67739     -662.88747      38.210081      1374.9119      1108.8024     -665.4327       46.964205      982.35229     -1694.7492      2.5452351      11.002246      2.0018725      13990.5      
+       500  -624.30227     -661.98001      37.677737      1355.7566     -998.39582     -664.60509      42.37322       987.58933     -1694.5676      2.6250885      11.151873      2.8269416      13990.5      
+Loop time of 1.22681 on 4 procs for 500 steps with 432 atoms
+
+Performance: 70.427 ns/day, 0.341 hours/ns, 407.562 timesteps/s, 176.067 katom-step/s
+99.6% CPU use with 4 MPI tasks x 1 OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0.81146    | 0.85002    | 0.88616    |   3.2 | 69.29
+Bond    | 0.00044227 | 0.00047196 | 0.0004927  |   0.0 |  0.04
+Kspace  | 0.19496    | 0.2291     | 0.26618    |   5.9 | 18.67
+Neigh   | 0.033601   | 0.033637   | 0.033668   |   0.0 |  2.74
+Comm    | 0.10228    | 0.10532    | 0.10844    |   0.7 |  8.58
+Output  | 0.00042511 | 0.0005178  | 0.00079314 |   0.0 |  0.04
+Modify  | 0.0039358  | 0.0041446  | 0.0043812  |   0.3 |  0.34
+Other   |            | 0.003591   |            |       |  0.29
+
+Nlocal:            108 ave         119 max         102 min
+Histogram: 1 1 1 0 0 0 0 0 0 1
+Nghost:           6516 ave        6545 max        6491 min
+Histogram: 1 0 0 1 1 0 0 0 0 1
+Neighs:          74338 ave       81248 max       69989 min
+Histogram: 1 0 2 0 0 0 0 0 0 1
+
+Total # of neighbors = 297352
+Ave neighs/atom = 688.31481
+Ave special neighs/atom = 1
+Neighbor list builds = 22
+Dangerous builds = 0
+
+unfix thermoberendsen
+
+# ------------------------ Dynamic Run -------------------------------
+
+run 1000
+Ewald initialization ...
+  using 12-bit tables for long-range coulomb (src/kspace.cpp:342)
+  G vector (1/distance) = 0.17525654
+  estimated absolute RMS force accuracy = 1.4956298e-05
+  estimated relative force accuracy = 1.0386574e-06
+  KSpace vectors: actual max1d max3d = 257 5 665
+                  kxmax kymax kzmax  = 5 5 5
+Generated 0 of 6 mixed pair_coeff terms from geometric mixing rule
+Per MPI rank memory allocation (min/avg/max) = 15.77 | 15.77 | 15.77 Mbytes
+   Step         TotEng         PotEng         KinEng          Temp          Press          E_pair         E_vdwl         E_coul         E_long         E_bond         Fnorm           Fmax          Volume    
+       500  -624.30215     -661.98001      37.677853      1355.7607     -998.39582     -664.60509      42.37322       987.58933     -1694.5676      2.6250885      11.151873      2.8269416      13990.5      
+       550  -624.30701     -662.13324      37.82623       1361.0998      331.59176     -664.76764      45.316218      984.72018     -1694.804       2.6344035      10.876715      1.9724056      13990.5      
+       600  -624.31        -661.82601      37.516002      1349.9368     -977.17581     -664.34273      42.382524      987.88184     -1694.6071      2.5167274      10.214167      1.7874658      13990.5      
+       650  -624.30519     -659.19898      34.89379       1255.5819      549.10964     -661.95798      46.555031      986.06915     -1694.5822      2.7590031      13.159476      2.1512563      13990.5      
+       700  -624.30928     -661.91087      37.601596      1353.0168     -173.63914     -664.45274      44.285271      985.83314     -1694.5712      2.5418658      10.972281      1.984156       13990.5      
+       750  -624.30955     -660.40967      36.10012       1298.9892      1225.6204     -663.20739      47.515779      984.09069     -1694.8139      2.7977232      11.762364      2.1457421      13990.5      
+       800  -624.30444     -660.30349      35.999056      1295.3526      268.80129     -663.25327      45.203498      986.26406     -1694.7208      2.9497822      11.511353      4.0055177      13990.5      
+       850  -624.30765     -663.65144      39.343789      1415.706       336.28197     -666.13412      45.120205      983.39506     -1694.6494      2.4826725      11.019554      2.1689376      13990.5      
+       900  -624.30369     -658.79356      34.489871      1241.0477      302.13113     -661.8388       45.814963      987.19191     -1694.8457      3.0452358      12.631512      1.95586        13990.5      
+       950  -624.30284     -663.60589      39.303051      1414.2402     -658.55801     -665.95872      43.121191      985.63282     -1694.7127      2.3528217      11.025244      2.0701961      13990.5      
+      1000  -624.30271     -660.53895      36.236239      1303.8872     -743.86488     -663.17077      42.960878      988.4243      -1694.5559      2.63182        10.551397      1.8854436      13990.5      
+      1050  -624.30263     -660.78721      36.484585      1312.8234      736.12712     -663.70574      46.302827      984.56837     -1694.5769      2.9185255      11.120911      2.1529953      13990.5      
+      1100  -624.30698     -662.99811      38.691132      1392.2215     -917.75109     -665.53933      42.354002      986.84225     -1694.7356      2.5412176      10.383025      2.7732246      13990.5      
+      1150  -624.31343     -663.12221      38.808782      1396.4549     -385.8342      -665.65414      43.405324      985.83263     -1694.8921      2.5319262      10.729866      2.5667091      13990.5      
+      1200  -624.30574     -660.21535      35.909614      1292.1343      644.79761     -663.16679      46.077427      985.06732     -1694.3115      2.9514333      11.150405      2.2375334      13990.5      
+      1250  -624.30306     -661.96534      37.662279      1355.2003     -1719.3437     -664.40257      40.528768      989.4865      -1694.4178      2.4372338      10.182451      1.8968934      13990.5      
+      1300  -624.30398     -660.44202      36.13804       1300.3537     -958.83111     -663.05164      42.604987      988.96646     -1694.6231      2.6096205      11.165392      2.2327505      13990.5      
+      1350  -624.30469     -661.73072      37.426026      1346.6992     -551.10687     -664.32356      43.364927      986.74028     -1694.4288      2.5928425      10.488159      1.6939621      13990.5      
+      1400  -624.30184     -662.26361      37.96177       1365.9769     -2622.8089     -664.83432      38.522214      991.25706     -1694.6136      2.5707077      9.3866239      1.4670708      13990.5      
+      1450  -624.30147     -659.9154       35.613922      1281.4944      559.83238     -662.52044      46.13057       986.09896     -1694.75        2.6050412      11.675944      2.3992075      13990.5      
+      1500  -624.30104     -661.25073      36.949684      1329.5591     -1182.9143     -663.76284      41.830283      989.05919     -1694.6523      2.5121098      9.9736928      1.8909614      13990.5      
+Loop time of 2.61888 on 4 procs for 1000 steps with 432 atoms
+
+Performance: 65.982 ns/day, 0.364 hours/ns, 381.843 timesteps/s, 164.956 katom-step/s
+100.0% CPU use with 4 MPI tasks x 1 OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 1.6939     | 1.7874     | 1.8747     |   4.8 | 68.25
+Bond    | 0.00091235 | 0.00096947 | 0.0010362  |   0.0 |  0.04
+Kspace  | 0.44585    | 0.53004    | 0.61614    |   8.3 | 20.24
+Neigh   | 0.071699   | 0.072354   | 0.073005   |   0.2 |  2.76
+Comm    | 0.21135    | 0.21631    | 0.22287    |   0.9 |  8.26
+Output  | 0.00097325 | 0.0011835  | 0.0017941  |   1.0 |  0.05
+Modify  | 0.0015262  | 0.0015976  | 0.0016448  |   0.1 |  0.06
+Other   |            | 0.009029   |            |       |  0.34
+
+Nlocal:            108 ave         118 max          98 min
+Histogram: 1 0 0 0 1 0 1 0 0 1
+Nghost:        6499.25 ave        6543 max        6476 min
+Histogram: 2 0 0 1 0 0 0 0 0 1
+Neighs:        74272.5 ave       81293 max       68383 min
+Histogram: 1 0 1 0 0 1 0 0 0 1
+
+Total # of neighbors = 297090
+Ave neighs/atom = 687.70833
+Ave special neighs/atom = 1
+Neighbor list builds = 45
+Dangerous builds = 0
+Total wall time: 0:00:03
