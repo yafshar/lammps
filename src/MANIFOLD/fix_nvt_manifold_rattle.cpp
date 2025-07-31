@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -59,7 +59,7 @@ enum {NOBIAS,BIAS};
 
 
 static const char* cite_fix_nvt_manifold_rattle =
-  "fix nvt/manifold/rattle command:\n\n"
+  "fix nvt/manifold/rattle command: doi:10.1016/j.bpj.2016.02.017\n\n"
   "@article{paquay-2016,\n"
   "   author        = {Paquay, Stefan and Kusters, Remy},\n"
   "   doi           = {10.1016/j.bpj.2016.02.017},\n"
@@ -121,7 +121,7 @@ FixNVTManifoldRattle::FixNVTManifoldRattle(LAMMPS *lmp, int narg, char **arg,
     }
   }
 
-  reset_dt();
+  FixNVTManifoldRattle::reset_dt();
 
   if (!got_temp ) error->all(FLERR,"Fix nvt/manifold/rattle needs 'temp'!");
 
@@ -187,15 +187,15 @@ void FixNVTManifoldRattle::init()
   // Makes sure the manifold params are set initially.
   update_var_params();
 
-  int icompute = modify->find_compute(id_temp);
-  if (icompute < 0) {
-    error->all(FLERR,"Temperature ID for fix nvt/manifold/rattle "
-               "does not exist");
+  temperature = modify->get_compute_by_id(id_temp);
+  if (!temperature) {
+    error->all(FLERR,"Temperature compute ID {} for fix {} does not exist", id_temp, style);
+  } else {
+    if (temperature->tempflag == 0)
+      error->all(FLERR, "Compute ID {} for fix {} does not compute a temperature", id_temp, style);
+    if (temperature->tempbias) which = BIAS;
+    else which = NOBIAS;
   }
-  temperature = modify->compute[icompute];
-  if (temperature->tempbias) which = BIAS;
-  else                        which = NOBIAS;
-
 }
 
 void FixNVTManifoldRattle::setup(int /*vflag*/)

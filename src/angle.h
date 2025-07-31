@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -44,7 +44,7 @@ class Angle : protected Pointers {
 
   ExecutionSpace execution_space;
   unsigned int datamask_read, datamask_modify;
-  int copymode;
+  int copymode, kokkosable;
 
   Angle(class LAMMPS *);
   ~Angle() override;
@@ -52,12 +52,12 @@ class Angle : protected Pointers {
   virtual void compute(int, int) = 0;
   virtual void settings(int, char **);
   virtual void coeff(int, char **) = 0;
-  virtual void init_style(){};
+  virtual void init_style() {};
   virtual double equilibrium_angle(int) = 0;
   virtual void write_restart(FILE *) = 0;
   virtual void read_restart(FILE *) = 0;
-  virtual void write_restart_settings(FILE *){};
-  virtual void read_restart_settings(FILE *){};
+  virtual void write_restart_settings(FILE *) {};
+  virtual void read_restart_settings(FILE *) {};
   virtual void write_data(FILE *) {}
   virtual double single(int, int, int, int) = 0;
   virtual void born_matrix(int /*atype*/, int /*at1*/, int /*at2*/, int /*at3*/, double &du,
@@ -89,6 +89,8 @@ class Angle : protected Pointers {
   void ev_setup(int, int, int alloc = 1);
   void ev_tally(int, int, int, int, int, double, double *, double *, double, double, double, double,
                 double, double);
+  void ev_tally4(int, int, int, int, int, int, double, double *, double *, double *, double *);
+  void ev_tally2(int, int, int, int, double, double, double, double, double);
 };
 
 }    // namespace LAMMPS_NS

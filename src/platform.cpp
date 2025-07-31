@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -16,12 +16,15 @@
  * the "utils" namespace with convenience and utility functions. */
 
 #include "platform.h"
+
+#include "fmt/format.h"
 #include "text_file_reader.h"
 #include "utils.h"
 
 #include <deque>
 #include <exception>
 #include <mpi.h>
+#include <utility>
 
 ////////////////////////////////////////////////////////////////////////
 // include system headers and tweak system settings
@@ -50,6 +53,7 @@
 #include <dlfcn.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <unistd.h>
@@ -59,6 +63,13 @@
 #include <fcntl.h>
 #include <sys/syslimits.h>
 #endif
+
+// for disk_free()
+#if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__DragonFly__) || \
+    defined(__OpenBSD__) || defined(__NetBSD__)
+#include <sys/statvfs.h>
+#endif
+
 ////////////////////////////////////////////////////////////////////////
 
 #include <chrono>
@@ -66,7 +77,7 @@
 #include <thread>
 
 /* ------------------------------------------------------------------ */
-
+namespace {
 /// Struct for listing on-the-fly compression/decompression commands
 struct compress_info {
   /// identifier for the different compression algorithms
@@ -79,7 +90,7 @@ struct compress_info {
 };
 
 // clang-format off
-static const std::vector<compress_info> compress_styles = {
+const std::vector<compress_info> compress_styles = {
     {"",     "",      "",       "",        compress_info::NONE},
     {"gz",   "gzip",  " > ",    " -cdf ",  compress_info::GZIP},
     {"bz2",  "bzip2", " > ",    " -cdf ",  compress_info::BZIP2},
@@ -92,7 +103,7 @@ static const std::vector<compress_info> compress_styles = {
 
 /* ------------------------------------------------------------------ */
 
-static const compress_info &find_compress_type(const std::string &file)
+const compress_info &find_compress_type(const std::string &file)
 {
   std::size_t dot = file.find_last_of('.');
   if (dot != std::string::npos) {
@@ -108,8 +119,8 @@ static const compress_info &find_compress_type(const std::string &file)
 
 // set reference time stamp during executable/library init.
 // should provide better resolution than using epoch, if the system clock supports it.
-static auto initial_time = std::chrono::steady_clock::now();
-
+auto initial_time = std::chrono::steady_clock::now();
+}
 using namespace LAMMPS_NS;
 
 // get CPU time
@@ -229,19 +240,24 @@ std::string platform::os_info()
     buf = "Windows 10 21H1";
   } else if (build == "19044") {
     buf = "Windows 10 21H2";
+  } else if (build == "19045") {
+    buf = "Windows 10 22H2";
   } else if (build == "20348") {
     buf = "Windows Server 2022";
   } else if (build == "22000") {
     buf = "Windows 11 21H2";
   } else if (build == "22621") {
     buf = "Windows 11 22H2";
+  } else if (build == "22631") {
+    buf = "Windows 11 23H2";
+  } else if (build == "25398") {
+    buf = "Windows Server 23H2";
+  } else if (build == "26100") {
+    buf = "Windows 11 24H2";
+  } else if (build == "26200") {
+    buf = "Windows 11 25H2";
   } else {
-    const char *entry = "ProductName";
-    RegGetValue(HKEY_LOCAL_MACHINE, subkey, entry, RRF_RT_REG_SZ, nullptr, &value,
-                (LPDWORD) &value_length);
-    // enforce zero termination
-    value[1023] = '\0';
-    buf = value;
+    buf = "Windows Build " + build;
   }
   DWORD fullversion, majorv, minorv, buildv = 0;
   fullversion = GetVersion();
@@ -304,8 +320,10 @@ std::string platform::os_info()
 
 std::string platform::cxx_standard()
 {
-#if __cplusplus > 202002L
-  return "newer than C++20";
+#if __cplusplus > 202302L
+  return "newer than C++23";
+#elif __cplusplus == 202302L
+  return "C++23";
 #elif __cplusplus == 202002L
   return "C++20";
 #elif __cplusplus == 201703L
@@ -385,8 +403,16 @@ std::string platform::openmp_standard()
   // Supported OpenMP version corresponds to the release date of the
   // specifications as posted at https://www.openmp.org/specifications/
 
-#if _OPENMP > 202011
-  return "OpenMP newer than version 5.1";
+#if _OPENMP > 202411
+  return "OpenMP newer than version 6.0";
+#elif _OPENMP == 202411
+  return "OpenMP 6.0";
+#elif _OPENMP == 202311
+  return "OpenMP 6.0 preview 2";
+#elif _OPENMP == 202211
+  return "OpenMP 6.0 preview 1";
+#elif _OPENMP == 202111
+  return "OpenMP 5.2";
 #elif _OPENMP == 202011
   return "OpenMP 5.1";
 #elif _OPENMP == 201811
@@ -735,12 +761,11 @@ std::string platform::current_directory()
 #if defined(_WIN32)
   char *buf = new char[MAX_PATH];
   if (_getcwd(buf, MAX_PATH)) { cwd = buf; }
-  delete[] buf;
 #else
-  auto buf = new char[PATH_MAX];
+  auto *buf = new char[PATH_MAX];
   if (::getcwd(buf, PATH_MAX)) { cwd = buf; }
-  delete[] buf;
 #endif
+  delete[] buf;
   return cwd;
 }
 
@@ -780,7 +805,7 @@ std::vector<std::string> platform::list_directory(const std::string &dir)
   while (FindNextFile(handle, &fd)) {
     std::string entry(fd.cFileName);
     if ((entry == "..") || (entry == ".")) continue;
-    files.push_back(entry);
+    files.push_back(std::move(entry));
   }
   FindClose(handle);
 #else
@@ -791,7 +816,7 @@ std::vector<std::string> platform::list_directory(const std::string &dir)
   while ((fd = readdir(handle)) != nullptr) {
     std::string entry(fd->d_name);
     if ((entry == "..") || (entry == ".")) continue;
-    files.push_back(entry);
+    files.push_back(std::move(entry));
   }
   closedir(handle);
 #endif
@@ -924,7 +949,7 @@ int platform::ftruncate(FILE *fp, bigint length)
     return 1;
   }
 #else
-  platform::fseek(fp, length);
+  (void) platform::fseek(fp, length);
   return ::ftruncate(fileno(fp), (off_t) length);
 #endif
 }
@@ -1035,6 +1060,62 @@ bool platform::file_is_readable(const std::string &path)
 }
 
 /* ----------------------------------------------------------------------
+   try to open file for writing to prove if it can be written to
+------------------------------------------------------------------------- */
+
+bool platform::file_is_writable(const std::string &path)
+{
+  // if the file exists, try to append and don't delete
+
+  if (file_is_readable(path)) {
+    FILE *fp = fopen(path.c_str(), "a");
+    if (fp) {
+      fclose(fp);
+      return true;
+    }
+  } else {
+    FILE *fp = fopen(path.c_str(), "w");
+    if (fp) {
+      fclose(fp);
+      unlink(path);
+      return true;
+    }
+  }
+  return false;
+}
+
+/* ----------------------------------------------------------------------
+   determine available disk space, if supported. Return -1 if not.
+------------------------------------------------------------------------- */
+
+double platform::disk_free(const std::string &path)
+{
+  double bytes_free = -1.0;
+
+#if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__DragonFly__) || \
+    defined(__OpenBSD__) || defined(__NetBSD__)
+  struct statvfs fs;
+
+  if (path.size()) {
+    int rv = statvfs(path.c_str(), &fs);
+    if (rv == 0) {
+#if defined(__linux__)
+      bytes_free = fs.f_bavail * fs.f_bsize;
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__DragonFly__) || \
+    defined(__OpenBSD__) || defined(__NetBSD__)
+      bytes_free = fs.f_bavail * fs.f_frsize;
+#endif
+    }
+  }
+#elif defined(_WIN32)
+  uint64_t is_free = 0;
+  if (GetDiskFreeSpaceEx(path.c_str(), (PULARGE_INTEGER) &is_free, nullptr, nullptr))
+    bytes_free = is_free;
+#endif
+  return bytes_free;
+}
+
+/* ----------------------------------------------------------------------
    check if filename has a known compression extension
 ------------------------------------------------------------------------- */
 
@@ -1052,7 +1133,7 @@ FILE *platform::compressed_read(const std::string &file)
   FILE *fp = nullptr;
 
 #if defined(LAMMPS_GZIP)
-  auto compress = find_compress_type(file);
+  const auto &compress = find_compress_type(file);
   if (compress.style == ::compress_info::NONE) return nullptr;
 
   if (find_exe_path(compress.command).size())
@@ -1071,8 +1152,9 @@ FILE *platform::compressed_write(const std::string &file)
   FILE *fp = nullptr;
 
 #if defined(LAMMPS_GZIP)
-  auto compress = find_compress_type(file);
+  const auto &compress = find_compress_type(file);
   if (compress.style == ::compress_info::NONE) return nullptr;
+  if (!file_is_writable(file)) return nullptr;
 
   if (find_exe_path(compress.command).size())
     // put quotes around file name so that they may contain blanks

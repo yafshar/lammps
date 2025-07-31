@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -40,7 +40,7 @@ class PairTracker : public Pair {
   double single(int, int, int, int, double, double, double, double &) override;
   double atom2cut(int) override;
   double radii2cut(double, double) override;
-  void transfer_history(double *, double *) override;
+  void transfer_history(double *, double *, int, int) override;
 
  protected:
   int sizeflag;
@@ -63,7 +63,7 @@ class PairTracker : public Pair {
 
   int nvalues, ncount;
   double *output_data;
-  typedef void (PairTracker::*FnPtrPack)(int, int, int, double *);
+  using FnPtrPack = void (PairTracker::*)(int, int, int, double *);
   FnPtrPack *pack_choice;    // ptrs to pack functions
 
   void pack_id1(int, int, int, double *);

@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -46,7 +46,7 @@ class ComputeCoordAtom : public Compute {
   double **carray;
 
   char *group2;
-  int jgroup, jgroupbit;
+  int jgroupbit;
 
   class ComputeOrientOrderAtom *c_orientorder;
   char *id_orientorder;

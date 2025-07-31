@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -39,9 +39,9 @@ static constexpr int BUF_SIZE = 256;
 void WriteCoeff::command(int narg, char **arg)
 {
   if (domain->box_exist == 0)
-    error->all(FLERR, "Write_coeff command before simulation box is defined");
+    error->all(FLERR, "Write_coeff command before simulation box is defined" + utils::errorurl(33));
 
-  if (narg != 1) error->all(FLERR, "Illegal write_coeff command");
+  if (narg != 1) utils::missing_cmd_args(FLERR, "write_coeff", error);
 
   char *file = utils::strdup(fmt::format("{}.tmp", arg[0]));
 
@@ -152,10 +152,10 @@ void WriteCoeff::command(int narg, char **arg)
           }
 
           // parse type number and skip over it
-          int type = atoi(str);
+          int type = std::stoi(str);
           char *p = str;
-          while ((*p != '\0') && (*p == ' ')) ++p;
-          while ((*p != '\0') && isdigit(*p)) ++p;
+          while (*p == ' ') ++p;
+          while (isdigit(*p)) ++p;
 
           fprintf(two, "%s %d %s %s", coeff, type, section, p);
           utils::sfgets(FLERR, str, BUF_SIZE, one, file, error);
@@ -167,6 +167,5 @@ void WriteCoeff::command(int narg, char **arg)
     fclose(two);
     platform::unlink(file);
   }
-
   delete[] file;
 }

@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -19,17 +19,18 @@
 
 #include "fix_restrain.h"
 
-#include <cmath>
-#include <cstring>
 #include "atom.h"
-#include "force.h"
-#include "update.h"
-#include "domain.h"
 #include "comm.h"
-#include "respa.h"
+#include "domain.h"
+#include "error.h"
+#include "force.h"
 #include "math_const.h"
 #include "memory.h"
-#include "error.h"
+#include "respa.h"
+#include "update.h"
+
+#include <cmath>
+#include <cstring>
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
@@ -37,9 +38,9 @@ using MathConst::DEG2RAD;
 
 enum{BOND,LBOUND,ANGLE,DIHEDRAL};
 
-#define TOLERANCE 0.05
-#define SMALL 0.001
-#define DELTA 1
+static constexpr double TOLERANCE = 0.05;
+static constexpr double SMALL = 0.001;
+static constexpr int DELTA = 1;
 
 /* ---------------------------------------------------------------------- */
 
@@ -185,7 +186,7 @@ int FixRestrain::setmask()
 void FixRestrain::init()
 {
   if (utils::strmatch(update->integrate_style,"^respa")) {
-    ilevel_respa = (dynamic_cast<Respa *>( update->integrate))->nlevels-1;
+    ilevel_respa = (dynamic_cast<Respa *>(update->integrate))->nlevels-1;
     if (respa_level >= 0) ilevel_respa = MIN(respa_level,ilevel_respa);
   }
 }
@@ -197,9 +198,9 @@ void FixRestrain::setup(int vflag)
   if (utils::strmatch(update->integrate_style,"^verlet"))
     post_force(vflag);
   else {
-    (dynamic_cast<Respa *>( update->integrate))->copy_flevel_f(ilevel_respa);
+    (dynamic_cast<Respa *>(update->integrate))->copy_flevel_f(ilevel_respa);
     post_force_respa(vflag,ilevel_respa,0);
-    (dynamic_cast<Respa *>( update->integrate))->copy_f_flevel(ilevel_respa);
+    (dynamic_cast<Respa *>(update->integrate))->copy_f_flevel(ilevel_respa);
   }
 }
 
@@ -271,21 +272,19 @@ void FixRestrain::restrain_bond(int m)
   if (newton_bond) {
     if (i2 == -1 || i2 >= nlocal) return;
     if (i1 == -1)
-      error->one(FLERR,"Restrain atoms {} {} missing on "
-                                   "proc {} at step {}", ids[m][0],ids[m][1],
+      error->one(FLERR,"Restrain atoms {} {} missing on proc {} at step {}", ids[m][0],ids[m][1],
                                    comm->me,update->ntimestep);
   } else {
     if ((i1 == -1 || i1 >= nlocal) && (i2 == -1 || i2 >= nlocal)) return;
     if (i1 == -1 || i2 == -1)
-      error->one(FLERR,"Restrain atoms {} {} missing on "
-                                   "proc {} at step {}", ids[m][0],ids[m][1],
+      error->one(FLERR,"Restrain atoms {} {} missing on proc {} at step {}", ids[m][0],ids[m][1],
                                    comm->me,update->ntimestep);
   }
 
   delx = x[i1][0] - x[i2][0];
   dely = x[i1][1] - x[i2][1];
   delz = x[i1][2] - x[i2][2];
-  domain->minimum_image(delx,dely,delz);
+  domain->minimum_image(FLERR, delx,dely,delz);
 
   rsq = delx*delx + dely*dely + delz*delz;
   r = sqrt(rsq);
@@ -358,7 +357,7 @@ void FixRestrain::restrain_lbound(int m)
   delx = x[i1][0] - x[i2][0];
   dely = x[i1][1] - x[i2][1];
   delz = x[i1][2] - x[i2][2];
-  domain->minimum_image(delx,dely,delz);
+  domain->minimum_image(FLERR, delx,dely,delz);
 
   rsq = delx*delx + dely*dely + delz*delz;
   r = sqrt(rsq);
@@ -443,7 +442,7 @@ void FixRestrain::restrain_angle(int m)
   delx1 = x[i1][0] - x[i2][0];
   dely1 = x[i1][1] - x[i2][1];
   delz1 = x[i1][2] - x[i2][2];
-  domain->minimum_image(delx1,dely1,delz1);
+  domain->minimum_image(FLERR, delx1,dely1,delz1);
 
   rsq1 = delx1*delx1 + dely1*dely1 + delz1*delz1;
   r1 = sqrt(rsq1);
@@ -453,7 +452,7 @@ void FixRestrain::restrain_angle(int m)
   delx2 = x[i3][0] - x[i2][0];
   dely2 = x[i3][1] - x[i2][1];
   delz2 = x[i3][2] - x[i2][2];
-  domain->minimum_image(delx2,dely2,delz2);
+  domain->minimum_image(FLERR, delx2,dely2,delz2);
 
   rsq2 = delx2*delx2 + dely2*dely2 + delz2*delz2;
   r2 = sqrt(rsq2);
@@ -565,26 +564,26 @@ void FixRestrain::restrain_dihedral(int m)
   vb1x = x[i1][0] - x[i2][0];
   vb1y = x[i1][1] - x[i2][1];
   vb1z = x[i1][2] - x[i2][2];
-  domain->minimum_image(vb1x,vb1y,vb1z);
+  domain->minimum_image(FLERR, vb1x,vb1y,vb1z);
 
   // 2nd bond
 
   vb2x = x[i3][0] - x[i2][0];
   vb2y = x[i3][1] - x[i2][1];
   vb2z = x[i3][2] - x[i2][2];
-  domain->minimum_image(vb2x,vb2y,vb2z);
+  domain->minimum_image(FLERR, vb2x,vb2y,vb2z);
 
   vb2xm = -vb2x;
   vb2ym = -vb2y;
   vb2zm = -vb2z;
-  domain->minimum_image(vb2xm,vb2ym,vb2zm);
+  domain->minimum_image(FLERR, vb2xm,vb2ym,vb2zm);
 
   // 3rd bond
 
   vb3x = x[i4][0] - x[i3][0];
   vb3y = x[i4][1] - x[i3][1];
   vb3z = x[i4][2] - x[i3][2];
-  domain->minimum_image(vb3x,vb3y,vb3z);
+  domain->minimum_image(FLERR, vb3x,vb3y,vb3z);
 
   ax = vb1y*vb2zm - vb1z*vb2ym;
   ay = vb1z*vb2xm - vb1x*vb2zm;
@@ -617,7 +616,7 @@ void FixRestrain::restrain_dihedral(int m)
                                     me,update->ntimestep,atom->tag[i1],
                                     atom->tag[i2],atom->tag[i3],atom->tag[i4]);
       error->warning(FLERR,str);
-      fmt::print(screen,"  1st atom: {} {} {} {}\n"
+      utils::print(screen,"  1st atom: {} {} {} {}\n"
                  "  2nd atom: {} {} {} {}\n"
                  "  3rd atom: {} {} {} {}\n"
                  "  4th atom: {} {} {} {}\n",

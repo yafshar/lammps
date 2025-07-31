@@ -2,7 +2,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -56,6 +56,7 @@ class RandPoolWrap : protected Pointers {
 
     RandWrap rand_wrap;
 
+#ifndef LMP_KOKKOS_GPU
     typedef Kokkos::Experimental::UniqueToken<
       LMPHostType, Kokkos::Experimental::UniqueTokenScope::Global> unique_token_type;
 
@@ -63,6 +64,7 @@ class RandPoolWrap : protected Pointers {
     int tid = (int) unique_token.acquire();
     rand_wrap.rng = random_thr[tid];
     unique_token.release(tid);
+#endif
 
     return rand_wrap;
   }

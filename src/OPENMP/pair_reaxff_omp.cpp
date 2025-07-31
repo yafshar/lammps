@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -63,12 +63,14 @@ using namespace LAMMPS_NS;
 using namespace ReaxFF;
 
 static const char cite_pair_reaxff_omp[] =
-  "pair reaxff/omp and fix qeq/reaxff/omp command:\n\n"
+  "pair reaxff/omp and fix qeq/reaxff/omp command: doi:10.1177/1094342017746221\n\n"
   "@Article{Aktulga17,\n"
-  " author =  {H. M. Aktulga, C. Knight, P. Coffman, K. A. OHearn, T. R. Shan, W. Jiang},\n"
-  " title =   {Optimizing the performance of reactive molecular dynamics simulations for multi-core architectures},\n"
+  " author =  {H. M. Aktulga and C. Knight and P. Coffman and\n"
+  "    K. A. O'Hearn and T. R. Shan and W. Jiang},\n"
+  " title =   {Optimizing the Performance of Reactive Molecular Dynamics\n"
+  "    Simulations for Multi-Core Architectures},\n"
   " journal = {International Journal of High Performance Computing Applications},\n"
-  " year =    to appear\n"
+  " year =    2018\n"
   "}\n\n";
 
 /* ---------------------------------------------------------------------- */
@@ -91,7 +93,7 @@ PairReaxFFOMP::~PairReaxFFOMP()
   if (setup_flag) {
     reax_list * bonds = api->lists+BONDS;
     for (int i=0; i<bonds->num_intrs; ++i)
-      sfree(error, bonds->select.bond_list[i].bo_data.CdboReduction, "CdboReduction");
+      sfree(bonds->select.bond_list[i].bo_data.CdboReduction);
   }
   memory->destroy(num_nbrs_offset);
 }
@@ -104,11 +106,15 @@ void PairReaxFFOMP::init_style()
 
   auto acks2_fixes = modify->get_fix_by_style("^acks2/reax");
   int have_qeq = modify->get_fix_by_style("^qeq/reax").size()
-    + modify->get_fix_by_style("^qeq/shielded").size() + acks2_fixes.size();
+    + modify->get_fix_by_style("^qeq/rel/reax").size()
+    + modify->get_fix_by_style("^qeq/shielded").size() + acks2_fixes.size()
+    + modify->get_fix_by_style("^qtpie/reax").size();
+
 
   if (qeqflag && (have_qeq != 1))
-    error->all(FLERR,"Pair style reaxff/omp requires use of exactly one of the "
-               "fix qeq/reaxff or fix qeq/shielded or fix acks2/reaxff commands");
+    error->all(FLERR,"Pair style reaxff requires use of exactly one of the "
+               "fix qeq/reaxff or fix qeq/shielded or fix acks2/reaxff or "
+               "fix qtpie/reaxff or fix qeq/rel/reaxff commands");
 
   api->system->acks2_flag = acks2_fixes.size();
   if (api->system->acks2_flag)
@@ -134,7 +140,7 @@ void PairReaxFFOMP::init_style()
                    "increased neighbor list skin.");
 
   if (fix_reaxff == nullptr)
-    fix_reaxff = dynamic_cast<FixReaxFF *>( modify->add_fix(fmt::format("{} all REAXFF",fix_id)));
+    fix_reaxff = dynamic_cast<FixReaxFF *>(modify->add_fix(fmt::format("{} all REAXFF",fix_id)));
 
   api->control->nthreads = comm->nthreads;
 }
@@ -433,7 +439,7 @@ int PairReaxFFOMP::write_reax_lists()
 #endif
   for (int itr_i = 0; itr_i < numall; ++itr_i) {
     int i = ilist[itr_i];
-    auto jlist = firstneigh[i];
+    auto *jlist = firstneigh[i];
     Set_Start_Index(i, num_nbrs_offset[i], far_nbrs);
 
     if (i < inum)

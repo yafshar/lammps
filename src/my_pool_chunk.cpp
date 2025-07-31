@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -12,8 +12,6 @@
    ------------------------------------------------------------------------- */
 
 #include "my_pool_chunk.h"
-
-#include <cstdlib>
 
 #if defined(LMP_INTEL) && !defined(LAMMPS_MEMALIGN) && !defined(_WIN32)
 #define LAMMPS_MEMALIGN 64
@@ -35,7 +33,7 @@ using namespace LAMMPS_NS;
  *
  * \note
  * This is a template class with explicit instantiation. If the class
- * is used with a new data type a new explicit instantiation may need
+ * is used with a new data type, a new explicit instantiation may need
  * to be added at the end of the file ``src/my_pool_chunk.cpp`` to
  * avoid symbol lookup errors. */
 
@@ -66,7 +64,7 @@ MyPoolChunk<T>::MyPoolChunk(int user_minchunk, int user_maxchunk, int user_nbin,
   if (!freehead || !chunksize) errorflag = 1;
   if (errorflag) return;
 
-  // insure nbin*binsize spans minchunk to maxchunk inclusive
+  // ensure nbin*binsize spans minchunk to maxchunk inclusive
 
   binsize = (maxchunk - minchunk + 1) / nbin;
   if (minchunk + nbin * binsize <= maxchunk) binsize++;

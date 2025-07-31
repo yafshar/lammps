@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -12,7 +12,7 @@
 ------------------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------------
-   Contributing authors: Ludwig Ahrens-Iwers (TUHH), Shern Tee (UQ), Robert Meißner (TUHH)
+   Contributing authors: Ludwig Ahrens-Iwers (TUHH), Shern Tee (UQ), Robert Meissner (TUHH)
 ------------------------------------------------------------------------- */
 
 #ifndef LMP_SLAB_DIPOLE_H
@@ -25,9 +25,9 @@ namespace LAMMPS_NS {
 class SlabDipole : public BoundaryCorrection {
  public:
   SlabDipole(LAMMPS *);
-  void vector_corr(double *, int, int, bool);
-  void matrix_corr(bigint *, double **);
-  void compute_corr(double, int, int, double &, double *);
+  void vector_corr(double *, int, int, bool) override;
+  void matrix_corr(bigint *, double **) override;
+  void compute_corr(double, int, int, double &, double *) override;
   void setup(double);
 };
 

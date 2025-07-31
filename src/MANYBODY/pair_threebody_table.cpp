@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -22,6 +22,7 @@
 #include "comm.h"
 #include "error.h"
 #include "force.h"
+#include "info.h"
 #include "math_const.h"
 #include "memory.h"
 #include "neigh_list.h"
@@ -35,7 +36,7 @@
 using namespace LAMMPS_NS;
 using MathConst::MY_PI;
 
-#define DELTA 4
+static constexpr int DELTA = 4;
 
 /* ---------------------------------------------------------------------- */
 
@@ -263,7 +264,9 @@ void PairThreebodyTable::init_style()
 
 double PairThreebodyTable::init_one(int i, int j)
 {
-  if (setflag[i][j] == 0) error->all(FLERR, "All pair coeffs are not set");
+  if (setflag[i][j] == 0)
+    error->all(FLERR, Error::NOLASTLINE,
+               "All pair coeffs are not set. Status:\n" + Info::get_pair_coeff_status(lmp));
 
   return cutmax;
 }
@@ -403,11 +406,15 @@ void PairThreebodyTable::setup_params()
         n = -1;
         for (m = 0; m < nparams; m++) {
           if (i == params[m].ielement && j == params[m].jelement && k == params[m].kelement) {
-            if (n >= 0) error->all(FLERR, "Potential file has duplicate entry");
+            if (n >= 0)
+              error->all(FLERR, "Potential file has a duplicate entry for: {} {} {}", elements[i],
+                         elements[j], elements[k]);
             n = m;
           }
         }
-        if (n < 0) error->all(FLERR, "Potential file is missing an entry");
+        if (n < 0)
+          error->all(FLERR, "Potential file is missing an entry for: {} {} {}", elements[i],
+                     elements[j], elements[k]);
         elem3param[i][j][k] = n;
       }
 
@@ -441,7 +448,7 @@ void PairThreebodyTable::read_table(Table *tb, char *file, char *keyword, bool s
 
   char *line = reader.find_section_start(keyword);
 
-  if (!line) { error->one(FLERR, "Did not find keyword in table file"); }
+  if (!line) error->one(FLERR, "Did not find keyword in table file");
 
   // read args on 2nd line of section
   // allocate table arrays for file values
@@ -450,7 +457,7 @@ void PairThreebodyTable::read_table(Table *tb, char *file, char *keyword, bool s
   param_extract(tb, line);
 
   // if it is a symmetric threebody interaction, less table entries are required
-  if (symmetric == true) {
+  if (symmetric) {
     memory->create(tb->r12file, tb->ninput * tb->ninput * (tb->ninput + 1), "mltable:r12file");
     memory->create(tb->r13file, tb->ninput * tb->ninput * (tb->ninput + 1), "mltable:r13file");
     memory->create(tb->thetafile, tb->ninput * tb->ninput * (tb->ninput + 1), "mltable:thetafile");
@@ -481,7 +488,7 @@ void PairThreebodyTable::read_table(Table *tb, char *file, char *keyword, bool s
   int cerror = 0;
   reader.skip_line();
   // if it is a symmetric threebody interaction, less table entries are required
-  if (symmetric == true) {
+  if (symmetric) {
     for (int i = 0; i < tb->ninput * tb->ninput * (tb->ninput + 1); i++) {
       line = reader.next_line(11);
       try {
@@ -583,7 +590,7 @@ void PairThreebodyTable::bcast_table(Table *tb, bool symmetric)
   MPI_Comm_rank(world, &me);
   if (me > 0) {
     // if it is a symmetric threebody interaction, less table entries are required
-    if (symmetric == true) {
+    if (symmetric) {
       memory->create(tb->r12file, tb->ninput * tb->ninput * (tb->ninput + 1), "mltable:r12file");
       memory->create(tb->r13file, tb->ninput * tb->ninput * (tb->ninput + 1), "mltable:r13file");
       memory->create(tb->thetafile, tb->ninput * tb->ninput * (tb->ninput + 1),
@@ -612,7 +619,7 @@ void PairThreebodyTable::bcast_table(Table *tb, bool symmetric)
   }
 
   // if it is a symmetric threebody interaction, less table entries are required
-  if (symmetric == true) {
+  if (symmetric) {
     MPI_Bcast(tb->r12file, tb->ninput * tb->ninput * (tb->ninput + 1), MPI_DOUBLE, 0, world);
     MPI_Bcast(tb->r13file, tb->ninput * tb->ninput * (tb->ninput + 1), MPI_DOUBLE, 0, world);
     MPI_Bcast(tb->thetafile, tb->ninput * tb->ninput * (tb->ninput + 1), MPI_DOUBLE, 0, world);
@@ -696,33 +703,35 @@ void PairThreebodyTable::uf_lookup(Param *pm, double r12, double r13, double the
 
   //lookup scheme
 
+  // NOLINTBEGIN
   // if it is a symmetric threebody interaction, less table entries are required
-  if (pm->symmetric == true) {
+  if (pm->symmetric) {
     nr12 = (r12 - pm->mltable->rmin + 0.5 * dr - 0.00000001) / dr;
-    if (r12 == (pm->mltable->rmin - 0.5 * dr)) { nr12 = 0; }
+    if (r12 == (pm->mltable->rmin - 0.5 * dr)) nr12 = 0;
     nr13 = (r13 - pm->mltable->rmin + 0.5 * dr - 0.00000001) / dr;
-    if (r13 == (pm->mltable->rmin - 0.5 * dr)) { nr13 = 0; }
+    if (r13 == (pm->mltable->rmin - 0.5 * dr)) nr13 = 0;
     nr13 -= nr12;
     ntheta = (theta - 0.00000001) / dtheta;
-    if (theta == 180.0) { ntheta = 79; }
+    if (theta >= 180.0) ntheta = (pm->mltable->ninput * 2) - 1;
     itable = 0;
-    for (i = 0; i < nr12; i++) { itable += (pm->mltable->ninput - i); }
+    for (i = 0; i < nr12; i++) itable += (pm->mltable->ninput - i);
     itable += nr13;
     itable *= (pm->mltable->ninput * 2);
     itable += ntheta;
   } else {
     // else, more (full) table entries are required
     nr12 = (r12 - pm->mltable->rmin + 0.5 * dr - 0.00000001) / dr;
-    if (r12 == (pm->mltable->rmin - 0.5 * dr)) { nr12 = 0; }
+    if (r12 == (pm->mltable->rmin - 0.5 * dr)) nr12 = 0;
     nr13 = (r13 - pm->mltable->rmin + 0.5 * dr - 0.00000001) / dr;
-    if (r13 == (pm->mltable->rmin - 0.5 * dr)) { nr13 = 0; }
+    if (r13 == (pm->mltable->rmin - 0.5 * dr)) nr13 = 0;
     ntheta = (theta - 0.00000001) / dtheta;
-    if (theta == 180.0) { ntheta = 79; }
+    if (theta >= 180.0) ntheta = (pm->mltable->ninput * 2) - 1;
     itable = nr12 * (pm->mltable->ninput);
     itable += nr13;
     itable *= (pm->mltable->ninput * 2);
     itable += ntheta;
   }
+  // NOLINTEND
 
   f11 = pm->mltable->f11file[itable];
   f12 = pm->mltable->f12file[itable];
@@ -764,12 +773,12 @@ void PairThreebodyTable::threebody(Param *paramijk, double rsq1, double rsq2, do
     swapped = true;
   }
 
-  //look up forces and energy in table belonging to parameter set paramijk
+  // look up forces and energy in table belonging to parameter set paramijk
 
-  //only do lookup and add three-body interactions if r12 and r13 are both between rmin and rmax
+  // only do lookup and add three-body interactions if r12 and r13 are both between rmin and rmax
 
   if ((r12 >= (paramijk->mltable->rmin - 0.5 * dr)) &&
-      (r13 <= (paramijk->mltable->rmax + 0.5 * dr)) &&
+      (r12 <= (paramijk->mltable->rmax + 0.5 * dr)) &&
       (r13 >= (paramijk->mltable->rmin - 0.5 * dr)) &&
       (r13 <= (paramijk->mltable->rmax + 0.5 * dr))) {
     uf_lookup(paramijk, r12, r13, theta, f11, f12, f21, f22, f31, f32, u);
@@ -778,7 +787,7 @@ void PairThreebodyTable::threebody(Param *paramijk, double rsq1, double rsq2, do
   }
 
   // if the indices have been swapped, swap them back
-  if (swapped == true) {
+  if (swapped) {
     temp = r12;
     r12 = r13;
     r13 = temp;

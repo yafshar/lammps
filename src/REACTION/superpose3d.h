@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -113,8 +113,8 @@ class Superpose3D {
 
   // C++ boilerplate: copy and move constructor, swap, and assignment operator
   Superpose3D(const Superpose3D<Scalar, ConstArrayOfCoords, ConstArray> &source);
-  Superpose3D(Superpose3D<Scalar, ConstArrayOfCoords, ConstArray> &&other);
-  void swap(Superpose3D<Scalar, ConstArrayOfCoords, ConstArray> &other);
+  Superpose3D(Superpose3D<Scalar, ConstArrayOfCoords, ConstArray> &&other) noexcept;
+  void swap(Superpose3D<Scalar, ConstArrayOfCoords, ConstArray> &other) noexcept;
   Superpose3D<Scalar, ConstArrayOfCoords, ConstArray> &
   operator=(Superpose3D<Scalar, ConstArrayOfCoords, ConstArray> source);
 
@@ -202,10 +202,10 @@ Scalar Superpose3D<Scalar, ConstArrayOfCoords, ConstArray>::Superpose(
   // Scalar P[4][4];
   // ...because most matrix solvers expect arrays in pointer-to-pointer format.
   // (a different format).  Below I create a fixed size matrix P in this format.
-  Scalar _P[4 * 4];              // Contiguous 1D array for storing contents of the 2D P array
+  Scalar _PF[4 * 4];             // Contiguous 1D array for storing contents of the 2D P array
   Scalar *P[4];                  // This version of P has has ** (pointer-to-pointer) format.
   for (int i = 0; i < 4; i++)    // We must make sure that
-    P[i] = &(_P[4 * i]);         // P[i] points to the appropriate location in memory
+    P[i] = &(_PF[4 * i]);        // P[i] points to the appropriate location in memory
 
   // Now fill the P array
   for (int i = 0; i < 3; i++)
@@ -409,7 +409,7 @@ Superpose3D<Scalar, ConstArrayOfCoords, ConstArray>::Superpose3D(
 
 template <typename Scalar, typename ConstArrayOfCoords, typename ConstArray>
 void Superpose3D<Scalar, ConstArrayOfCoords, ConstArray>::swap(
-    Superpose3D<Scalar, ConstArrayOfCoords, ConstArray> &other)
+    Superpose3D<Scalar, ConstArrayOfCoords, ConstArray> &other) noexcept
 {
   std::swap(N, other.N);
   std::swap(R, other.R);
@@ -420,7 +420,7 @@ void Superpose3D<Scalar, ConstArrayOfCoords, ConstArray>::swap(
 // Move constructor (C++11)
 template <typename Scalar, typename ConstArrayOfCoords, typename ConstArray>
 Superpose3D<Scalar, ConstArrayOfCoords, ConstArray>::Superpose3D(
-    Superpose3D<Scalar, ConstArrayOfCoords, ConstArray> &&other)
+    Superpose3D<Scalar, ConstArrayOfCoords, ConstArray> &&other) noexcept
 {
   Init();
   swap(*this, other);

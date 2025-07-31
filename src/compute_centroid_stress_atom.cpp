@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -36,12 +36,13 @@ using namespace LAMMPS_NS;
 enum { NOBIAS, BIAS };
 
 static const char cite_centroid_angle_improper_dihedral[] =
-    "compute centroid/stress/atom for angles, impropers and dihedrals:\n\n"
-    "@article{PhysRevE.99.051301,\n"
-    " title = {Application of atomic stress to compute heat flux via molecular dynamics for "
-    "systems with many-body interactions},\n"
+    "compute centroid/stress/atom for angles, impropers and dihedrals: "
+    "doi:10.1103/PhysRevE.99.051301\n\n"
+    "@article{Surblys2019,\n"
+    " title = {Application of Atomic Stress to Compute Heat Flux via Molecular\n"
+    "    Dynamics for Systems With Many-Body Interactions},\n"
     " author = {Surblys, Donatas and Matsubara, Hiroki and Kikugawa, Gota and Ohara, Taku},\n"
-    " journal = {Physical Review E},\n"
+    " journal = {Physical Review~E},\n"
     " volume = {99},\n"
     " issue = {5},\n"
     " pages = {051301},\n"
@@ -51,12 +52,12 @@ static const char cite_centroid_angle_improper_dihedral[] =
     "}\n\n";
 
 static const char cite_centroid_shake_rigid[] =
-    "compute centroid/stress/atom for constrained dynamics:\n\n"
-    "@article{doi:10.1063/5.0070930,\n"
+    "compute centroid/stress/atom for constrained dynamics: doi:10.1063/5.0070930\n\n"
+    "@article{Surblys2021,\n"
     " author = {Surblys, Donatas and Matsubara, Hiroki and Kikugawa, Gota and Ohara, Taku},\n"
     " journal = {Journal of Applied Physics},\n"
-    " title = {Methodology and meaning of computing heat flux via atomic stress in systems with "
-    "constraint dynamics},\n"
+    " title = {Methodology and Meaning of Computing Heat Flux via Atomic Stress in Systems with\n"
+    "    Constraint Dynamics},\n"
     " volume = {130},\n"
     " number = {21},\n"
     " pages = {215104},\n"
@@ -79,14 +80,14 @@ ComputeCentroidStressAtom::ComputeCentroidStressAtom(LAMMPS *lmp, int narg, char
   comm_reverse = 9;
 
   // store temperature ID used by stress computation
-  // insure it is valid for temperature computation
+  // ensure it is valid for temperature computation
 
   if (strcmp(arg[3], "NULL") == 0)
     id_temp = nullptr;
   else {
     id_temp = utils::strdup(arg[3]);
 
-    auto compute = modify->get_compute_by_id(id_temp);
+    auto *compute = modify->get_compute_by_id(id_temp);
     if (!compute)
       error->all(FLERR, "Could not find compute centroid/stress/atom temperature ID {}", id_temp);
     if (compute->tempflag == 0)
@@ -194,7 +195,7 @@ void ComputeCentroidStressAtom::init()
       error->all(FLERR, "KSpace style does not support compute centroid/stress/atom");
 
   if (fixflag) {
-    for (auto &ifix : modify->get_fix_list())
+    for (const auto &ifix : modify->get_fix_list())
       if (ifix->virial_peratom_flag && (ifix->centroidstressflag == CENTROID_NOTAVAIL))
         error->all(FLERR, "Fix {} does not support compute centroid/stress/atom", ifix->style);
   }
@@ -209,7 +210,7 @@ void ComputeCentroidStressAtom::compute_peratom()
 
   invoked_peratom = update->ntimestep;
   if (update->vflag_atom != invoked_peratom)
-    error->all(FLERR, "Per-atom virial was not tallied on needed timestep");
+    error->all(FLERR, Error::NOLASTLINE, "Per-atom virial was not tallied on needed timestep{}", utils::errorurl(22));
 
   // grow local stress array if necessary
   // needs to be atom->nmax in length
@@ -302,12 +303,12 @@ void ComputeCentroidStressAtom::compute_peratom()
   // add in per-atom contributions from relevant fixes
   // skip if vatom = nullptr
   // possible during setup phase if fix has not initialized its vatom yet
-  // e.g. fix ave/spatial defined before fix shake,
-  //   and fix ave/spatial uses a per-atom stress from this compute as input
+  // e.g. fix ave/chunk defined before fix shake,
+  //   and fix ave/chunk uses a per-atom stress from this compute as input
   // fix styles are CENTROID_SAME, CENTROID_AVAIL or CENTROID_NOTAVAIL
 
   if (fixflag) {
-    for (auto &ifix : modify->get_fix_list())
+    for (const auto &ifix : modify->get_fix_list())
       if (ifix->virial_peratom_flag && ifix->thermo_virial) {
         if (ifix->centroidstressflag == CENTROID_AVAIL) {
           double **cvatom = ifix->cvatom;
@@ -394,7 +395,7 @@ void ComputeCentroidStressAtom::compute_peratom()
     } else {
 
       // invoke temperature if it hasn't been already
-      // this insures bias factor is pre-computed
+      // this ensures bias factor is pre-computed
 
       if (keflag && temperature->invoked_scalar != update->ntimestep) temperature->compute_scalar();
 

@@ -1,6 +1,9 @@
 # Cmake script code to define the LAMMPS C++ interface
 # settings required for building LAMMPS plugins
 
+set(LAMMPS_THIRDPARTY_URL "https://download.lammps.org/thirdparty"
+  CACHE STRING "URL for thirdparty package downloads")
+
 ################################################################################
 # helper function
 function(validate_option name values)
@@ -20,35 +23,75 @@ function(validate_option name values)
 endfunction(validate_option)
 
 #################################################################################
-# LAMMPS C++ interface. We only need the header related parts.
+# LAMMPS C++ interface. We only need the header related parts for shared linkage
+# but the library .a file for real static or quasi-static linkage (of LAMMPS).
 add_library(lammps INTERFACE)
 target_include_directories(lammps INTERFACE ${LAMMPS_HEADER_DIR})
 if((CMAKE_SYSTEM_NAME STREQUAL "Windows") AND CMAKE_CROSSCOMPILING)
   target_link_libraries(lammps INTERFACE ${CMAKE_BINARY_DIR}/../liblammps.dll.a)
 endif()
+
 ################################################################################
 # MPI configuration
+# do not include the (obsolete) MPI C++ bindings which makes
+# for leaner object files and avoids namespace conflicts
+set(MPI_CXX_SKIP_MPICXX TRUE)
 if(NOT CMAKE_CROSSCOMPILING)
-  set(MPI_CXX_SKIP_MPICXX TRUE)
-  find_package(MPI QUIET)
+  find_package(MPI QUIET COMPONENTS CXX)
   option(BUILD_MPI "Build MPI version" ${MPI_FOUND})
 else()
   option(BUILD_MPI "Build MPI version" OFF)
 endif()
 
 if(BUILD_MPI)
-  find_package(MPI REQUIRED)
-  option(LAMMPS_LONGLONG_TO_LONG "Workaround if your system or MPI version does not recognize 'long long' data types" OFF)
-  if(LAMMPS_LONGLONG_TO_LONG)
-    target_compile_definitions(lammps INTERFACE -DLAMMPS_LONGLONG_TO_LONG)
+  # We use a non-standard procedure to cross-compile with MPI on Windows
+  if((CMAKE_SYSTEM_NAME STREQUAL "Windows") AND CMAKE_CROSSCOMPILING)
+    message(STATUS "Downloading and configuring MS-MPI 10.1 for Windows cross-compilation")
+    set(MPICH2_WIN64_DEVEL_URL "${LAMMPS_THIRDPARTY_URL}/msmpi-win64-devel.tar.gz" CACHE STRING "URL for MS-MPI (win64) tarball")
+    set(MPICH2_WIN64_DEVEL_MD5 "86314daf1bffb809f1fcbefb8a547490" CACHE STRING "MD5 checksum of MS-MPI (win64) tarball")
+    mark_as_advanced(MPICH2_WIN64_DEVEL_URL)
+    mark_as_advanced(MPICH2_WIN64_DEVEL_MD5)
+
+    include(ExternalProject)
+    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+      ExternalProject_Add(mpi4win_build
+        URL     ${MPICH2_WIN64_DEVEL_URL}
+        URL_MD5 ${MPICH2_WIN64_DEVEL_MD5}
+        CONFIGURE_COMMAND "" BUILD_COMMAND "" INSTALL_COMMAND ""
+        BUILD_BYPRODUCTS <SOURCE_DIR>/lib/libmsmpi.a)
+    else()
+      message(FATAL_ERROR "Only x86 64-bit builds are supported with MS-MPI")
+    endif()
+
+    ExternalProject_get_property(mpi4win_build SOURCE_DIR)
+    file(MAKE_DIRECTORY "${SOURCE_DIR}/include")
+    add_library(MPI::MPI_CXX UNKNOWN IMPORTED)
+    set_target_properties(MPI::MPI_CXX PROPERTIES
+      IMPORTED_LOCATION "${SOURCE_DIR}/lib/libmsmpi.a"
+      INTERFACE_INCLUDE_DIRECTORIES "${SOURCE_DIR}/include"
+      INTERFACE_COMPILE_DEFINITIONS "MPICH_SKIP_MPICXX=1")
+    add_dependencies(MPI::MPI_CXX mpi4win_build)
+
+    # set variables for status reporting at the end of CMake run
+    set(MPI_CXX_INCLUDE_PATH "${SOURCE_DIR}/include")
+    set(MPI_CXX_COMPILE_DEFINITIONS "MPICH_SKIP_MPICXX=1")
+    set(MPI_CXX_LIBRARIES "${SOURCE_DIR}/lib/libmsmpi.a")
+  else()
+    find_package(MPI REQUIRED)
+    option(LAMMPS_LONGLONG_TO_LONG "Workaround if your system or MPI version does not recognize 'long long' data types" OFF)
+    if(LAMMPS_LONGLONG_TO_LONG)
+      target_compile_definitions(lammps INTERFACE -DLAMMPS_LONGLONG_TO_LONG)
+    endif()
   endif()
   target_link_libraries(lammps INTERFACE MPI::MPI_CXX)
 else()
   target_include_directories(lammps INTERFACE "${LAMMPS_SOURCE_DIR}/STUBS")
 endif()
 
-set(LAMMPS_SIZES "smallbig" CACHE STRING "LAMMPS integer sizes (smallsmall: all 32-bit, smallbig: 64-bit #atoms #timesteps, bigbig: also 64-bit imageint, 64-bit atom ids)")
-set(LAMMPS_SIZES_VALUES smallbig bigbig smallsmall)
+################
+# integer size selection
+set(LAMMPS_SIZES "smallbig" CACHE STRING "LAMMPS integer sizes (smallbig: 64-bit #atoms #timesteps, bigbig: also 64-bit imageint, 64-bit atom ids)")
+set(LAMMPS_SIZES_VALUES smallbig bigbig)
 set_property(CACHE LAMMPS_SIZES PROPERTY STRINGS ${LAMMPS_SIZES_VALUES})
 validate_option(LAMMPS_SIZES LAMMPS_SIZES_VALUES)
 string(TOUPPER ${LAMMPS_SIZES} LAMMPS_SIZES)

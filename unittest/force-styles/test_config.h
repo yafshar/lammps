@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS Development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -70,6 +70,7 @@ public:
     std::vector<coord_t> restart_pos;
     std::vector<coord_t> run_vel;
     std::vector<coord_t> restart_vel;
+    std::vector<coord_t> run_torque;
 
     TestConfig() :
         lammps_version(""), date_generated(""), basename(""), epsilon(1.0e-14), input_file(""),
@@ -94,9 +95,10 @@ public:
         restart_pos.clear();
         run_vel.clear();
         restart_vel.clear();
+        run_torque.clear();
         global_vector.clear();
     }
-    TestConfig(const TestConfig &) = delete;
+    TestConfig(const TestConfig &)            = delete;
     TestConfig &operator=(const TestConfig &) = delete;
 
     std::string tags_line() const

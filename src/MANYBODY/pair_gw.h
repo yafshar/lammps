@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -93,8 +93,6 @@ class PairGW : public Pair {
     const double gw_c = param->c * param->c;
     const double gw_d = param->d * param->d;
     const double hcth = param->h - costheta;
-
-    //printf("gw_gijk: gw_c=%f gw_d=%f hcth=%f=%f-%f\n", gw_c, gw_d, hcth, param->h, costheta);
 
     return param->gamma * (1.0 + gw_c / gw_d - gw_c / (gw_d + hcth * hcth));
   }

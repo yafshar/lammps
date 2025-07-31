@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    This software is distributed under the GNU General Public License.
 
@@ -32,7 +32,7 @@
 using namespace LAMMPS_NS;
 using MathExtra::dot3;
 
-#define MAXNEIGH 24
+static constexpr int MAXNEIGH = 24;
 
 /* ---------------------------------------------------------------------- */
 
@@ -629,7 +629,7 @@ void PairCombOMP::Short_neigh_thr()
       sht_num[i] = nj;
       ipg.vgot(nj);
       if (ipg.status())
-        error->one(FLERR,"Neighbor list overflow, boost neigh_modify one");
+        error->one(FLERR, Error::NOLASTLINE, "Neighbor list overflow, boost neigh_modify one" + utils::errorurl(36));
     }
   }
 }

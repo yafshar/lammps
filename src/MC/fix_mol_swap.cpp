@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -33,11 +33,12 @@
 #include "update.h"
 
 #include <cmath>
+#include <cstring>
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
 
-#define BIG 1.0e20
+static constexpr double BIG = 1.0e20;
 
 /* ---------------------------------------------------------------------- */
 
@@ -55,10 +56,10 @@ FixMolSwap::FixMolSwap(LAMMPS *lmp, int narg, char **arg) :
 
   // parse args
 
-  nevery = utils::inumeric(FLERR,arg[3],false,lmp);
-  ncycles = utils::inumeric(FLERR,arg[4],false,lmp);
-  itype = utils::inumeric(FLERR,arg[5],false,lmp);
-  jtype = utils::inumeric(FLERR,arg[6],false,lmp);
+  nevery = utils::inumeric(FLERR, arg[3], false, lmp);
+  ncycles = utils::inumeric(FLERR, arg[4], false, lmp);
+  itype = utils::expand_type_int(FLERR, arg[5], Atom::ATOM, lmp);
+  jtype = utils::expand_type_int(FLERR, arg[6], Atom::ATOM, lmp);
   seed = utils::inumeric(FLERR,arg[7],false,lmp);
   double temperature = utils::numeric(FLERR,arg[8],false,lmp);
 
@@ -138,7 +139,7 @@ void FixMolSwap::init()
 {
   // c_pe = compute used to calculate before/after potential energy
 
-  auto id_pe = (char *) "thermo_pe";
+  auto *id_pe = (char *) "thermo_pe";
   int ipe = modify->find_compute(id_pe);
   c_pe = modify->compute[ipe];
 
@@ -237,7 +238,7 @@ void FixMolSwap::pre_exchange()
 
   if (next_reneighbor != update->ntimestep) return;
 
-  // insure current system is ready to compute energy
+  // ensure current system is ready to compute energy
 
   if (domain->triclinic) domain->x2lamda(atom->nlocal);
   domain->pbc();
@@ -487,7 +488,7 @@ void FixMolSwap::write_restart(FILE *fp)
 void FixMolSwap::restart(char *buf)
 {
   int n = 0;
-  auto list = (double *) buf;
+  auto *list = (double *) buf;
 
   seed = static_cast<int> (list[n++]);
   random->reset(seed);

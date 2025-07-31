@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -24,7 +24,6 @@
 #include "force.h"
 #include "gpu_extra.h"
 #include "memory.h"
-#include "modify.h"
 #include "neighbor.h"
 #include "update.h"
 
@@ -33,12 +32,12 @@
 using namespace LAMMPS_NS;
 using namespace FixConst;
 
-#define TILTMAX 1.5
+static constexpr double TILTMAX = 1.5;
 
 enum{NOBIAS,BIAS};
 enum{ISO,ANISO,TRICLINIC};
 
-typedef struct { double x,y,z; } dbl3_t;
+using dbl3_t = struct { double x,y,z; };
 
 /* ----------------------------------------------------------------------
    NVT,NPH,NPT integrators for improved Nose-Hoover equations of motion
@@ -129,9 +128,7 @@ void FixNHGPU::remap()
     }
   }
 
-  if (nrigid)
-    for (int i = 0; i < nrigid; i++)
-      modify->fix[rfix[i]]->deform(0);
+  for (auto &ifix : rfix) ifix->deform(0);
 
   // reset global and local box to new size/shape
 
@@ -304,9 +301,7 @@ void FixNHGPU::remap()
     }
   }
 
-  if (nrigid)
-    for (int i = 0; i < nrigid; i++)
-      modify->fix[rfix[i]]->deform(1);
+  for (auto &ifix : rfix) ifix->deform(1);
 }
 
 /* ----------------------------------------------------------------------

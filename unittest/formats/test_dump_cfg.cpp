@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS Development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -23,6 +23,7 @@ using ::testing::Eq;
 
 bool verbose = false;
 
+namespace LAMMPS_NS {
 class DumpCfgTest : public MeltTest {
     std::string dump_style = "cfg";
 
@@ -50,8 +51,8 @@ TEST_F(DumpCfgTest, invalid_options)
 
 TEST_F(DumpCfgTest, require_multifile)
 {
-    auto dump_file = "dump.melt.cfg_run.cfg";
-    auto fields =
+    const auto *dump_file = "dump.melt.cfg_run.cfg";
+    const auto *fields =
         "mass type xs ys zs id proc procp1 x y z ix iy iz xu yu zu xsu ysu zsu vx vy vz fx fy fz";
 
     BEGIN_HIDE_OUTPUT();
@@ -63,8 +64,8 @@ TEST_F(DumpCfgTest, require_multifile)
 
 TEST_F(DumpCfgTest, run0)
 {
-    auto dump_file = "dump_cfg_run*.melt.cfg";
-    auto fields    = "mass type xs ys zs id proc procp1 x y z ix iy iz vx vy vz fx fy fz";
+    const auto *dump_file = "dump_cfg_run*.melt.cfg";
+    const auto *fields    = "mass type xs ys zs id proc procp1 x y z ix iy iz vx vy vz fx fy fz";
 
     generate_dump(dump_file, fields, "", 0);
 
@@ -77,8 +78,8 @@ TEST_F(DumpCfgTest, run0)
 
 TEST_F(DumpCfgTest, write_dump)
 {
-    auto dump_file = "dump_cfg_run*.melt.cfg";
-    auto fields    = "mass type xs ys zs id proc procp1 x y z ix iy iz vx vy vz fx fy fz";
+    const auto *dump_file = "dump_cfg_run*.melt.cfg";
+    const auto *fields    = "mass type xs ys zs id proc procp1 x y z ix iy iz vx vy vz fx fy fz";
 
     BEGIN_HIDE_OUTPUT();
     command("run 0 post no");
@@ -104,8 +105,8 @@ TEST_F(DumpCfgTest, write_dump)
 
 TEST_F(DumpCfgTest, unwrap_run0)
 {
-    auto dump_file = "dump_cfg_unwrap_run*.melt.cfg";
-    auto fields    = "mass type xsu ysu zsu id proc procp1 x y z ix iy iz vx vy vz fx fy fz";
+    const auto *dump_file = "dump_cfg_unwrap_run*.melt.cfg";
+    const auto *fields    = "mass type xsu ysu zsu id proc procp1 x y z ix iy iz vx vy vz fx fy fz";
 
     generate_dump(dump_file, fields, "", 0);
 
@@ -118,8 +119,8 @@ TEST_F(DumpCfgTest, unwrap_run0)
 
 TEST_F(DumpCfgTest, no_buffer_run0)
 {
-    auto dump_file = "dump_cfg_no_buffer_run*.melt.cfg";
-    auto fields    = "mass type xsu ysu zsu id proc procp1 x y z ix iy iz vx vy vz fx fy fz";
+    const auto *dump_file = "dump_cfg_no_buffer_run*.melt.cfg";
+    const auto *fields    = "mass type xsu ysu zsu id proc procp1 x y z ix iy iz vx vy vz fx fy fz";
 
     generate_dump(dump_file, fields, "buffer no", 0);
 
@@ -132,8 +133,8 @@ TEST_F(DumpCfgTest, no_buffer_run0)
 
 TEST_F(DumpCfgTest, no_unwrap_no_buffer_run0)
 {
-    auto dump_file = "dump_cfg_no_unwrap_no_buffer_run*.melt.cfg";
-    auto fields    = "mass type xs ys zs id proc procp1 x y z ix iy iz vx vy vz fx fy fz";
+    const auto *dump_file = "dump_cfg_no_unwrap_no_buffer_run*.melt.cfg";
+    const auto *fields    = "mass type xs ys zs id proc procp1 x y z ix iy iz vx vy vz fx fy fz";
 
     generate_dump(dump_file, fields, "buffer no", 0);
 
@@ -143,6 +144,7 @@ TEST_F(DumpCfgTest, no_unwrap_no_buffer_run0)
     ASSERT_THAT(lines[0], Eq("Number of particles = 32"));
     delete_file("dump_cfg_no_unwrap_no_buffer_run0.melt.cfg");
 }
+} // namespace LAMMPS_NS
 
 int main(int argc, char **argv)
 {
@@ -151,7 +153,7 @@ int main(int argc, char **argv)
 
     // handle arguments passed via environment variable
     if (const char *var = getenv("TEST_ARGS")) {
-        std::vector<std::string> env = utils::split_words(var);
+        std::vector<std::string> env = LAMMPS_NS::utils::split_words(var);
         for (auto arg : env) {
             if (arg == "-v") {
                 verbose = true;

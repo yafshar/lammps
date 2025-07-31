@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -58,6 +58,9 @@ class BondFENEKokkos : public BondFENE {
       const F_FLOAT &ebond, const F_FLOAT &fbond, const F_FLOAT &delx,
                   const F_FLOAT &dely, const F_FLOAT &delz) const;
 
+  DAT::tdual_efloat_1d k_eatom;
+  DAT::tdual_virial_array k_vatom;
+
  protected:
 
   class NeighborKokkos *neighborKK;
@@ -66,18 +69,11 @@ class BondFENEKokkos : public BondFENE {
   typename ArrayTypes<DeviceType>::t_f_array f;
   typename ArrayTypes<DeviceType>::t_int_2d bondlist;
 
-  DAT::tdual_efloat_1d k_eatom;
-  DAT::tdual_virial_array k_vatom;
   typename ArrayTypes<DeviceType>::t_efloat_1d d_eatom;
   typename ArrayTypes<DeviceType>::t_virial_array d_vatom;
 
-  DAT::tdual_int_scalar k_warning_flag;
-  typename AT::t_int_scalar d_warning_flag;
-  HAT::t_int_scalar h_warning_flag;
-
-  DAT::tdual_int_scalar k_error_flag;
-  typename AT::t_int_scalar d_error_flag;
-  HAT::t_int_scalar h_error_flag;
+  typename AT::t_int_scalar d_flag;
+  HAT::t_int_scalar h_flag;
 
   int nlocal,newton_bond;
   int eflag,vflag;

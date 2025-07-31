@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -36,6 +36,7 @@ class PairE3B : public Pair {
 
  protected:
   //potential parameters
+  std::string typeO_str;
   int typeO;
   double ea, eb, ec;      //three body energies
   double k3;              //three body exponential decay (units inverse length)

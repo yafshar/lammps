@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -32,7 +32,7 @@
 
 using namespace LAMMPS_NS;
 
-#define MAXLINE 1024        // This sets the maximum line length in EAM input files.
+static constexpr int MAXLINE = 1024;        // This sets the maximum line length in EAM input files.
 
 PairEAMCD::PairEAMCD(LAMMPS *lmp, int _cdeamVersion)
   : PairEAM(lmp), PairEAMAlloy(lmp), cdeamVersion(_cdeamVersion)
@@ -503,7 +503,7 @@ void PairEAMCD::read_h_coeff(char *filename)
       error->one(FLERR,"Failure to seek to end-of-file for reading h(x) coeffs: {}",
                  utils::getsyserror());
 
-    auto buf = new char[MAXLINE+1];
+    auto *buf = new char[MAXLINE+1];
     auto rv = fread(buf,1,MAXLINE,fptr);
     if (rv == 0) error->one(FLERR,"Failure to read h(x) coeffs: {}", utils::getsyserror());
     buf[rv] = '\0';        // must 0-terminate buffer for string processing

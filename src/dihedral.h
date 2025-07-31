@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -37,11 +37,14 @@ class Dihedral : protected Pointers {
                              // CENTROID_AVAIL = different and implemented
                              // CENTROID_NOTAVAIL = different, not yet implemented
 
+  int reinitflag;            // 0 if not compatible with fix adapt
+                             // extract() method may still need to be added
+
   // KOKKOS host/device flag and data masks
 
   ExecutionSpace execution_space;
   unsigned int datamask_read, datamask_modify;
-  int copymode;
+  int copymode, kokkosable;
 
   Dihedral(class LAMMPS *);
   ~Dihedral() override;
@@ -52,8 +55,8 @@ class Dihedral : protected Pointers {
   virtual void coeff(int, char **) = 0;
   virtual void write_restart(FILE *) = 0;
   virtual void read_restart(FILE *) = 0;
-  virtual void write_restart_settings(FILE *){};
-  virtual void read_restart_settings(FILE *){};
+  virtual void write_restart_settings(FILE *) {};
+  virtual void read_restart_settings(FILE *) {};
   virtual void write_data(FILE *) {}
   virtual double memory_usage();
   virtual void born_matrix(int /*dtype*/, int /*at1*/, int /*at2*/, int /*at3*/, int /*at4*/,
@@ -62,6 +65,8 @@ class Dihedral : protected Pointers {
     du = 0.0;
     du2 = 0.0;
   }
+  virtual void *extract(const char *, int &) { return nullptr; }
+  void reinit();
 
  protected:
   int suffix_flag;    // suffix compatibility flag

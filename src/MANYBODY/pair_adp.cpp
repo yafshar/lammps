@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -441,12 +441,12 @@ void PairADP::coeff(int narg, char **arg)
   if (!allocated) allocate();
 
   if (narg != 3 + atom->ntypes)
-    error->all(FLERR,"Incorrect args for pair coefficients");
+    error->all(FLERR,"Incorrect args for pair coefficients" + utils::errorurl(21));
 
-  // insure I,J args are * *
+  // ensure I,J args are * *
 
   if (strcmp(arg[0],"*") != 0 || strcmp(arg[1],"*") != 0)
-    error->all(FLERR,"Incorrect args for pair coefficients");
+    error->all(FLERR,"Incorrect args for pair coefficients" + utils::errorurl(21));
 
   // read ADP parameter file
 
@@ -499,7 +499,7 @@ void PairADP::coeff(int narg, char **arg)
     }
   }
 
-  if (count == 0) error->all(FLERR,"Incorrect args for pair coefficients");
+  if (count == 0) error->all(FLERR,"Incorrect args for pair coefficients" + utils::errorurl(21));
 }
 
 
@@ -558,14 +558,8 @@ void PairADP::read_file(char *filename)
         error->one(FLERR,"Incorrect element names in ADP potential file");
 
       file->elements = new char*[file->nelements];
-      for (int i = 0; i < file->nelements; i++) {
-        const std::string word = values.next_string();
-        const int n = word.length() + 1;
-        file->elements[i] = new char[n];
-        strcpy(file->elements[i], word.c_str());
-      }
-
-      //
+      for (int i = 0; i < file->nelements; i++)
+        file->elements[i] = utils::strdup(values.next_string());
 
       values = reader.next_values(5);
       file->nrho = values.next_int();

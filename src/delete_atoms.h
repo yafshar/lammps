@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -30,7 +30,7 @@ class DeleteAtoms : public Command {
   DeleteAtoms(class LAMMPS *);
   void command(int, char **) override;
 
- private:
+ protected:
   int *dlist;
   int allflag, compress_flag, bond_flag, mol_flag;
   std::map<tagint, int> *hash;

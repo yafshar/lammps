@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -31,10 +31,12 @@ class WriteData : public Command {
   void write(const std::string &);
 
  private:
-  int me, nprocs;
   int pairflag;
   int coeffflag;
   int fixflag;
+  int triclinic_general;
+  int lmapflag;
+  int noinitflag;
   FILE *fp;
   bigint nbonds_local, nbonds;
   bigint nangles_local, nangles;

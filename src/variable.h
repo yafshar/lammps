@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -34,6 +34,8 @@ class Variable : protected Pointers {
   int find(const char *);
   void set_arrays(int);
   void python_command(int, char **);
+  void purge_atomfile();
+  void clear_in_progress();
 
   int equalstyle(int);
   int atomstyle(int);
@@ -47,6 +49,7 @@ class Variable : protected Pointers {
   void compute_atom(int, int, double *, int, int);
   int compute_vector(int, double **);
   void internal_set(int, double);
+  int internal_create(char *, double);
 
   tagint int_between_brackets(char *&, int);
   double evaluate_boolean(char *);
@@ -55,7 +58,7 @@ class Variable : protected Pointers {
   int nvar;        // # of defined variables
   char **names;    // name of each variable
 
-  // must match "varstyles" array in info.cpp
+  // must match "varstyles" array in variables.cpp, UNKNOWN must be last.
   enum {
     INDEX,
     LOOP,
@@ -72,9 +75,11 @@ class Variable : protected Pointers {
     VECTOR,
     PYTHON,
     TIMER,
-    INTERNAL
+    INTERNAL,
+    UNKNOWN
   };
   static constexpr int VALUELENGTH = 64;
+  static const std::vector<std::string> varstyles;
 
  private:
   int me;
@@ -83,12 +88,14 @@ class Variable : protected Pointers {
   int *num;                    // # of values for each variable
   int *which;                  // next available value for each variable
   int *pad;                    // 1 = pad loop/uloop variables with 0s, 0 = no pad
+  int *pyindex;                // indices to Python funcs for python-style vars
   class VarReader **reader;    // variable that reads from file
   char ***data;                // str value of each variable's values
   double *dvalue;              // single numeric value for internal variables
 
   struct VecVar {
     int n, nmax;
+    int dynamic;
     bigint currentstep;
     double *values;
   };
@@ -118,9 +125,13 @@ class Variable : protected Pointers {
     Tree *first, *second;    // ptrs further down tree for first 2 args
     Tree **extra;            // ptrs further down tree for nextra args
 
+    int pyvar;               // index of Python variable invoked as py_name()
+    int argcount;            // # of args to associated Python function
+    int *argvars;            // indices of internal variables for each arg
+
     Tree() :
         array(nullptr), iarray(nullptr), barray(nullptr), selfalloc(0), ivalue(0), nextra(0),
-        region(nullptr), first(nullptr), second(nullptr), extra(nullptr)
+        region(nullptr), first(nullptr), second(nullptr), extra(nullptr), argvars(nullptr)
     {
     }
   };
@@ -139,11 +150,15 @@ class Variable : protected Pointers {
   int math_function(char *, char *, Tree **, Tree **, int &, double *, int &, int);
   int group_function(char *, char *, Tree **, Tree **, int &, double *, int &, int);
   Region *region_function(char *, int);
-  int special_function(char *, char *, Tree **, Tree **, int &, double *, int &, int);
+  int special_function(const std::string &, char *, Tree **, Tree **, int &, double *, int &, int,
+                       char *, int &, char *&);
+  int feature_function(char *, char *, Tree **, Tree **, int &, double *, int &, int);
   void peratom2global(int, char *, double *, int, tagint, Tree **, Tree **, int &, double *, int &);
+  void custom2global(int *, double *, int, tagint, Tree **, Tree **, int &, double *, int &);
   int is_atom_vector(char *);
   void atom_vector(char *, Tree **, Tree **, int &);
   int parse_args(char *, char **);
+  void parse_vector(int, char *);
   char *find_next_comma(char *);
   void print_var_error(const std::string &, int, const std::string &, int, int global = 1);
   void print_tree(Tree *, int);
@@ -151,7 +166,7 @@ class Variable : protected Pointers {
 
 class VarReader : protected Pointers {
  public:
-  class FixStore *fixstore;
+  class FixStoreAtom *fixstore;
   char *id_fix;
 
   VarReader(class LAMMPS *, char *, char *, int);

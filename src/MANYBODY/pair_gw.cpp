@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -23,6 +23,7 @@
 #include "comm.h"
 #include "error.h"
 #include "force.h"
+#include "info.h"
 #include "math_const.h"
 #include "math_extra.h"
 #include "memory.h"
@@ -37,7 +38,7 @@ using namespace LAMMPS_NS;
 using namespace MathConst;
 using namespace MathExtra;
 
-#define DELTA 4
+static constexpr int DELTA = 4;
 
 /* ---------------------------------------------------------------------- */
 
@@ -73,7 +74,8 @@ PairGW::~PairGW()
 void PairGW::compute(int eflag, int vflag)
 {
   int i,j,k,ii,jj,kk,inum,jnum;
-  int itag,jtag,itype,jtype,ktype,iparam_ij,iparam_ijk;
+  int itype,jtype,ktype,iparam_ij,iparam_ijk;
+  tagint itag,jtag;
   double xtmp,ytmp,ztmp,delx,dely,delz,evdwl,fpair;
   double rsq,rsq1,rsq2;
   double delr1[3],delr2[3],fi[3],fj[3],fk[3];
@@ -278,9 +280,9 @@ void PairGW::coeff(int narg, char **arg)
 void PairGW::init_style()
 {
   if (atom->tag_enable == 0)
-    error->all(FLERR,"Pair style GW requires atom IDs");
+    error->all(FLERR, Error::NOLASTLINE, "Pair style GW requires atom IDs");
   if (force->newton_pair == 0)
-    error->all(FLERR,"Pair style GW requires newton pair on");
+    error->all(FLERR, Error::NOLASTLINE, "Pair style GW requires newton pair on");
 
   // need a full neighbor list
 
@@ -293,7 +295,9 @@ void PairGW::init_style()
 
 double PairGW::init_one(int i, int j)
 {
-  if (setflag[i][j] == 0) error->all(FLERR,"All pair coeffs are not set");
+  if (setflag[i][j] == 0)
+    error->all(FLERR, Error::NOLASTLINE,
+               "All pair coeffs are not set. Status\n" + Info::get_pair_coeff_status(lmp));
 
   return cutmax;
 }
@@ -427,11 +431,13 @@ void PairGW::setup_params()
           if (i == params[m].ielement && j == params[m].jelement &&
               k == params[m].kelement) {
             if (n >= 0)
-              error->all(FLERR,"Potential file has duplicate entry");
+              error->all(FLERR,"Potential file has a duplicate entry for: {} {} {}",
+                         elements[i], elements[j], elements[k]);
             n = m;
           }
         }
-        if (n < 0) error->all(FLERR,"Potential file is missing an entry");
+        if (n < 0) error->all(FLERR,"Potential file is missing an entry for: {} {} {}",
+                              elements[i], elements[j], elements[k]);
         elem3param[i][j][k] = n;
       }
 

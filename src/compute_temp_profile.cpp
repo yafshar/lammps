@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -120,7 +120,7 @@ ComputeTempProfile::ComputeTempProfile(LAMMPS *lmp, int narg, char **arg) :
   if (nbins <= 0) error->all(FLERR,"Illegal compute temp/profile command");
 
   nstreaming = (xflag==0 ? 0 : 1) + (yflag==0 ? 0 : 1) + (zflag==0 ? 0 : 1);
-  reset_extra_dof();
+  ComputeTempProfile::reset_extra_dof();
 
   memory->create(vbin,nbins,ncount,"temp/profile:vbin");
   memory->create(binave,nbins,ncount,"temp/profile:binave");

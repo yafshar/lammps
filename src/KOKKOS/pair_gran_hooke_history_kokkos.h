@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -32,10 +32,8 @@ namespace LAMMPS_NS {
 template <class DeviceType>
 class FixNeighHistoryKokkos;
 
-template<int NEIGHFLAG, int NEWTON_PAIR, int EVFLAG, int SHEARUPDATE>
+template<int NEIGHFLAG, int NEWTON_PAIR, int VFLAG, int SHEARUPDATE>
 struct TagPairGranHookeHistoryCompute {};
-
-struct TagPairGranHookeHistoryReduce {};
 
 template <class DeviceType>
 class PairGranHookeHistoryKokkos : public PairGranHookeHistory {
@@ -49,26 +47,18 @@ class PairGranHookeHistoryKokkos : public PairGranHookeHistory {
   void compute(int, int) override;
   void init_style() override;
 
+  template<int NEIGHFLAG, int NEWTON_PAIR, int VFLAG, int SHEARUPDATE>
   KOKKOS_INLINE_FUNCTION
-  void operator()(TagPairGranHookeHistoryReduce, const int ii) const;
+  void operator()(TagPairGranHookeHistoryCompute<NEIGHFLAG,NEWTON_PAIR,VFLAG,SHEARUPDATE>, const int, EV_FLOAT &ev) const;
+  template<int NEIGHFLAG, int NEWTON_PAIR, int VFLAG, int SHEARUPDATE>
+  KOKKOS_INLINE_FUNCTION
+  void operator()(TagPairGranHookeHistoryCompute<NEIGHFLAG,NEWTON_PAIR,VFLAG,SHEARUPDATE>, const int) const;
 
-  template<int NEIGHFLAG, int NEWTON_PAIR, int EVFLAG, int SHEARUPDATE>
-  KOKKOS_INLINE_FUNCTION
-  void operator()(TagPairGranHookeHistoryCompute<NEIGHFLAG,NEWTON_PAIR,EVFLAG,SHEARUPDATE>, const int, EV_FLOAT &ev) const;
-  template<int NEIGHFLAG, int NEWTON_PAIR, int EVFLAG, int SHEARUPDATE>
-  KOKKOS_INLINE_FUNCTION
-  void operator()(TagPairGranHookeHistoryCompute<NEIGHFLAG,NEWTON_PAIR,EVFLAG,SHEARUPDATE>, const int) const;
-
-  template<int NEWTON_PAIR>
+  template<int NEIGHFLAG, int NEWTON_PAIR>
   KOKKOS_INLINE_FUNCTION
   void ev_tally_xyz(EV_FLOAT &ev, int i, int j,
                     F_FLOAT fx, F_FLOAT fy, F_FLOAT fz,
                     X_FLOAT delx, X_FLOAT dely, X_FLOAT delz) const;
-  template<int NEIGHFLAG, int NEWTON_PAIR>
-  KOKKOS_INLINE_FUNCTION
-  void ev_tally_xyz_atom(EV_FLOAT &ev, int i, int j,
-                         F_FLOAT fx, F_FLOAT fy, F_FLOAT fz,
-                         X_FLOAT delx, X_FLOAT dely, X_FLOAT delz) const;
 
  protected:
   typename AT::t_x_array_randomread x;
@@ -86,7 +76,6 @@ class PairGranHookeHistoryKokkos : public PairGranHookeHistory {
   DAT::tdual_virial_array k_vatom;
   typename AT::t_efloat_1d d_eatom;
   typename AT::t_virial_array d_vatom;
-  typename AT::t_tagint_1d tag;
 
   typename AT::t_neighbors_2d d_neighbors;
   typename AT::t_int_1d_randomread d_ilist;
@@ -99,12 +88,14 @@ class PairGranHookeHistoryKokkos : public PairGranHookeHistory {
   typename AT::t_int_1d d_numneigh_touch;
 
   int newton_pair;
-  double special_lj[4];
 
   int neighflag;
   int nlocal,nall,eflag,vflag;
 
   FixNeighHistoryKokkos<DeviceType> *fix_historyKK;
+
+  KOKKOS_INLINE_FUNCTION
+  int sbmask(const int& j) const {return j >> SBBITS & 3;}
 
   friend void pair_virial_fdotr_compute<PairGranHookeHistoryKokkos>(PairGranHookeHistoryKokkos*);
 };

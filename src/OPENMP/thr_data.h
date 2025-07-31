@@ -1,7 +1,7 @@
 /* -*- c++ -*- -------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -130,7 +130,7 @@ class ThrData {
   void *_rho1d_6;
   void *_drho1d_6;
   // my thread id
-  const int _tid;
+  int _tid;
   // timer info
   int _timer_active;
   class Timer *_timer;

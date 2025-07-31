@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -63,6 +63,7 @@ void NPairCopyKokkos<DeviceType>::copy_to_kokkos(NeighList *list)
   list_kk->d_ilist = listcopy_kk->d_ilist;
   list_kk->d_numneigh = listcopy_kk->d_numneigh;
   list_kk->d_neighbors = listcopy_kk->d_neighbors;
+  list_kk->maxneighs = listcopy_kk->maxneighs;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -115,7 +116,7 @@ void NPairCopyKokkos<DeviceType>::copy_to_cpu(NeighList *list)
     firstneigh[i] = neighptr;
     ipage->vgot(jnum);
     if (ipage->status())
-      error->one(FLERR,"Neighbor list overflow, boost neigh_modify one");
+      error->one(FLERR, Error::NOLASTLINE, "Neighbor list overflow, boost neigh_modify one" + utils::errorurl(36));
   }
 }
 

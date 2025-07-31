@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -22,6 +22,7 @@
 #include "comm.h"
 #include "error.h"
 #include "force.h"
+#include "info.h"
 #include "math_const.h"
 #include "math_extra.h"
 #include "memory.h"
@@ -32,15 +33,13 @@
 
 #include <cmath>
 #include <cstring>
-#include <cctype>
 
 using namespace LAMMPS_NS;
 using namespace MathConst;
 using namespace MathExtra;
 
-#define MAXLINE 1024
-#define DELTA 4
-#define PGDELTA 1
+static constexpr int DELTA = 4;
+static constexpr int PGDELTA = 1;
 
 /* ---------------------------------------------------------------------- */
 
@@ -162,11 +161,10 @@ void PairExTeP::SR_neigh()
         }
       }
     }
-  //printf("SR_neigh : N[%d] = %f\n",i,N[i]);
 
     ipage->vgot(n);
     if (ipage->status())
-      error->one(FLERR,"Neighbor list overflow, boost neigh_modify one");
+      error->one(FLERR, Error::NOLASTLINE, "Neighbor list overflow, boost neigh_modify one" + utils::errorurl(36));
   }
 }
 
@@ -500,7 +498,9 @@ void PairExTeP::init_style()
 
 double PairExTeP::init_one(int i, int j)
 {
-  if (setflag[i][j] == 0) error->all(FLERR,"All pair coeffs are not set");
+  if (setflag[i][j] == 0)
+    error->all(FLERR, Error::NOLASTLINE,
+               "All pair coeffs are not set. Status\n" + Info::get_pair_coeff_status(lmp));
 
   cutghost[i][j] = cutmax ;
   cutghost[j][i] = cutghost[i][j];
@@ -601,7 +601,7 @@ void PairExTeP::read_file(char *file)
         error->one(FLERR,"Illegal ExTeP parameter");
 
       nparams++;
-      if (nparams >= pow(nelements,3)) break;
+      if (nparams >= pow((double)nelements,3)) break;
     }
 
     /* F_IJ (3) */
@@ -642,7 +642,7 @@ void PairExTeP::read_file(char *file)
         if (!utils::is_integer(kname))
           continue;
 
-        int Ni  = atoi(kname.c_str());
+        int Ni  = std::stoi(kname);
         int Nj  = values.next_int();
         double spline_val = values.next_double();
         double spline_derx = values.next_double();
@@ -696,11 +696,13 @@ void PairExTeP::setup()
         for (m = 0; m < nparams; m++) {
           if (i == params[m].ielement && j == params[m].jelement &&
               k == params[m].kelement) {
-            if (n >= 0) error->all(FLERR,"Potential file has duplicate entry");
+            if (n >= 0) error->all(FLERR,"Potential file has a duplicate entry for: {} {} {}",
+                                   elements[i], elements[j], elements[k]);
             n = m;
           }
         }
-        if (n < 0) error->all(FLERR,"Potential file is missing an entry");
+        if (n < 0) error->all(FLERR,"Potential file is missing an entry for: {} {} {}",
+                              elements[i], elements[j], elements[k]);
         elem3param[i][j][k] = n;
       }
 

@@ -10,13 +10,15 @@
 #ifndef COLVARTYPES_H
 #define COLVARTYPES_H
 
+#include <sstream> // TODO specialize templates and replace this with iosfwd
 #include <vector>
 
-#include "colvarmodule.h"
-
-#ifndef PI
-#define PI 3.14159265358979323846
+#ifdef COLVARS_LAMMPS
+// Use open-source Jacobi implementation
+#include "math_eigen_impl.h"
 #endif
+
+#include "colvarmodule.h"
 
 // ----------------------------------------------------------------------
 /// Linear algebra functions and data types used in the collective
@@ -53,6 +55,12 @@ public:
     }
   }
 
+  /// Explicit Copy constructor
+  inline vector1d(const vector1d&) = default;
+
+  /// Explicit Copy assignement
+  inline vector1d& operator=(const vector1d&) = default;
+
   /// Return a pointer to the data location
   inline T * c_array()
   {
@@ -65,6 +73,12 @@ public:
 
   /// Return a reference to the data
   inline std::vector<T> &data_array()
+  {
+    return data;
+  }
+
+  /// Return a reference to the data
+  inline std::vector<T> const &data_array() const
   {
     return data;
   }
@@ -493,6 +507,12 @@ public:
     return data;
   }
 
+  /// Return a reference to the data
+  inline std::vector<T> const &data_array() const
+  {
+    return data;
+  }
+
   inline row & operator [] (size_t const i)
   {
     return rows[i];
@@ -868,105 +888,64 @@ public:
 
 /// \brief 2-dimensional array of real numbers with three components
 /// along each dimension (works with colvarmodule::rvector)
-class colvarmodule::rmatrix
-  : public colvarmodule::matrix2d<colvarmodule::real> {
-private:
+class colvarmodule::rmatrix {
 
 public:
 
-  /// Return the xx element
-  inline cvm::real & xx() { return (*this)[0][0]; }
-  /// Return the xy element
-  inline cvm::real & xy() { return (*this)[0][1]; }
-  /// Return the xz element
-  inline cvm::real & xz() { return (*this)[0][2]; }
-  /// Return the yx element
-  inline cvm::real & yx() { return (*this)[1][0]; }
-  /// Return the yy element
-  inline cvm::real & yy() { return (*this)[1][1]; }
-  /// Return the yz element
-  inline cvm::real & yz() { return (*this)[1][2]; }
-  /// Return the zx element
-  inline cvm::real & zx() { return (*this)[2][0]; }
-  /// Return the zy element
-  inline cvm::real & zy() { return (*this)[2][1]; }
-  /// Return the zz element
-  inline cvm::real & zz() { return (*this)[2][2]; }
-
-  /// Return the xx element
-  inline cvm::real xx() const { return (*this)[0][0]; }
-  /// Return the xy element
-  inline cvm::real xy() const { return (*this)[0][1]; }
-  /// Return the xz element
-  inline cvm::real xz() const { return (*this)[0][2]; }
-  /// Return the yx element
-  inline cvm::real yx() const { return (*this)[1][0]; }
-  /// Return the yy element
-  inline cvm::real yy() const { return (*this)[1][1]; }
-  /// Return the yz element
-  inline cvm::real yz() const { return (*this)[1][2]; }
-  /// Return the zx element
-  inline cvm::real zx() const { return (*this)[2][0]; }
-  /// Return the zy element
-  inline cvm::real zy() const { return (*this)[2][1]; }
-  /// Return the zz element
-  inline cvm::real zz() const { return (*this)[2][2]; }
+  cvm::real xx, xy, xz, yx, yy, yz, zx, zy, zz;
 
   /// Default constructor
   inline rmatrix()
-    : cvm::matrix2d<cvm::real>(3, 3)
-  {}
+  {
+    reset();
+  }
 
   /// Constructor component by component
   inline rmatrix(cvm::real xxi, cvm::real xyi, cvm::real xzi,
                  cvm::real yxi, cvm::real yyi, cvm::real yzi,
                  cvm::real zxi, cvm::real zyi, cvm::real zzi)
-    : cvm::matrix2d<cvm::real>(3, 3)
   {
-    this->xx() = xxi;
-    this->xy() = xyi;
-    this->xz() = xzi;
-    this->yx() = yxi;
-    this->yy() = yyi;
-    this->yz() = yzi;
-    this->zx() = zxi;
-    this->zy() = zyi;
-    this->zz() = zzi;
+    xx = xxi;
+    xy = xyi;
+    xz = xzi;
+    yx = yxi;
+    yy = yyi;
+    yz = yzi;
+    zx = zxi;
+    zy = zyi;
+    zz = zzi;
   }
 
-  /// Destructor
-  inline ~rmatrix()
-  {}
+
+  inline void reset()
+  {
+    xx = xy = xz = yx = yy = yz = zx = zy = zz = 0.0;
+  }
 
   /// Return the determinant
   inline cvm::real determinant() const
   {
     return
-      (  xx() * (yy()*zz() - zy()*yz()))
-      - (yx() * (xy()*zz() - zy()*xz()))
-      + (zx() * (xy()*yz() - yy()*xz()));
+      (  xx * (yy*zz - zy*yz))
+      - (yx * (xy*zz - zy*xz))
+      + (zx * (xy*yz - yy*xz));
   }
 
   inline cvm::rmatrix transpose() const
   {
-    return cvm::rmatrix(this->xx(), this->yx(), this->zx(),
-                        this->xy(), this->yy(), this->zy(),
-                        this->xz(), this->yz(), this->zz());
+    return cvm::rmatrix(xx, yx, zx,
+                        xy, yy, zy,
+                        xz, yz, zz);
   }
 
-  friend cvm::rvector operator * (cvm::rmatrix const &m, cvm::rvector const &r);
-
+  inline friend cvm::rvector operator * (cvm::rmatrix const &m,
+                                         cvm::rvector const &r)
+  {
+    return cvm::rvector(m.xx*r.x + m.xy*r.y + m.xz*r.z,
+                        m.yx*r.x + m.yy*r.y + m.yz*r.z,
+                        m.zx*r.x + m.zy*r.y + m.zz*r.z);
+  }
 };
-
-
-inline cvm::rvector operator * (cvm::rmatrix const &m,
-                                cvm::rvector const &r)
-{
-  return cvm::rvector(m.xx()*r.x + m.xy()*r.y + m.xz()*r.z,
-                      m.yx()*r.x + m.yy()*r.y + m.yz()*r.z,
-                      m.zx()*r.x + m.zy()*r.y + m.zz()*r.z);
-}
-
 
 
 
@@ -1151,11 +1130,6 @@ public:
     q0-=h.q0; q1-=h.q1; q2-=h.q2; q3-=h.q3;
   }
 
-  /// Promote a 3-vector to a quaternion
-  static inline cvm::quaternion promote(cvm::rvector const &v)
-  {
-    return cvm::quaternion(0.0, v.x, v.y, v.z);
-  }
   /// Return the vector component
   inline cvm::rvector get_vector() const
   {
@@ -1207,7 +1181,8 @@ public:
   /// reference frame)
   inline cvm::rvector rotate(cvm::rvector const &v) const
   {
-    return ((*this) * promote(v) * ((*this).conjugate())).get_vector();
+    return ( (*this) * cvm::quaternion(0.0, v.x, v.y, v.z) *
+             this->conjugate() ).get_vector();
   }
 
   /// \brief Rotate Q2 through this quaternion (put it in the rotated
@@ -1223,18 +1198,18 @@ public:
   {
     cvm::rmatrix R;
 
-    R.xx() = q0*q0 + q1*q1 - q2*q2 - q3*q3;
-    R.yy() = q0*q0 - q1*q1 + q2*q2 - q3*q3;
-    R.zz() = q0*q0 - q1*q1 - q2*q2 + q3*q3;
+    R.xx = q0*q0 + q1*q1 - q2*q2 - q3*q3;
+    R.yy = q0*q0 - q1*q1 + q2*q2 - q3*q3;
+    R.zz = q0*q0 - q1*q1 - q2*q2 + q3*q3;
 
-    R.xy() = 2.0 * (q1*q2 - q0*q3);
-    R.xz() = 2.0 * (q0*q2 + q1*q3);
+    R.xy = 2.0 * (q1*q2 - q0*q3);
+    R.xz = 2.0 * (q0*q2 + q1*q3);
 
-    R.yx() = 2.0 * (q0*q3 + q1*q2);
-    R.yz() = 2.0 * (q2*q3 - q0*q1);
+    R.yx = 2.0 * (q0*q3 + q1*q2);
+    R.yz = 2.0 * (q2*q3 - q0*q1);
 
-    R.zx() = 2.0 * (q1*q3 - q0*q2);
-    R.zy() = 2.0 * (q0*q1 + q2*q3);
+    R.zx = 2.0 * (q1*q3 - q0*q2);
+    R.zy = 2.0 * (q0*q1 + q2*q3);
 
     return R;
   }
@@ -1242,8 +1217,57 @@ public:
 
   /// \brief Multiply the given vector by the derivative of the given
   /// (rotated) position with respect to the quaternion
-  cvm::quaternion position_derivative_inner(cvm::rvector const &pos,
-                                            cvm::rvector const &vec) const;
+  /// \param pos The position \f$\mathbf{x}\f$.
+  /// \param vec The vector \f$\mathbf{v}\f$.
+  /// \return A quaternion (see the detailed documentation below).
+  ///
+  /// This function is mainly used for projecting the gradients or forces on
+  /// the rotated atoms to the forces on quaternion. Assume this rotation can
+  /// be represented as \f$R(\mathbf{q})\f$,
+  /// where \f$\mathbf{q} := (q_0, q_1, q_2, q_3)\f$
+  /// is the current quaternion, the function returns the following new
+  /// quaternion:
+  /// \f[
+  /// \left(\mathbf{v}^\mathrm{T}\frac{\partial R(\mathbf{q})}{\partial q_0}\mathbf{x},
+  ///       \mathbf{v}^\mathrm{T}\frac{\partial R(\mathbf{q})}{\partial q_1}\mathbf{x},
+  ///       \mathbf{v}^\mathrm{T}\frac{\partial R(\mathbf{q})}{\partial q_2}\mathbf{x},
+  ///       \mathbf{v}^\mathrm{T}\frac{\partial R(\mathbf{q})}{\partial q_3}\mathbf{x}\right)
+  /// \f]
+  /// where \f$\mathbf{v}\f$ is usually the gradient of \f$\xi\f$ with respect to
+  /// the rotated frame \f$\tilde{\mathbf{X}}\f$,
+  /// \f$\partial \xi / \partial \tilde{\mathbf{X}}\f$, or the force acting on it
+  /// (\f$\mathbf{F}_{\tilde{\mathbf{X}}}\f$).
+  /// By using the following loop in pseudo C++ code,
+  /// either \f$\partial \xi / \partial \tilde{\mathbf{X}}\f$
+  /// or \f$\mathbf{F}_{\tilde{\mathbf{X}}}\f$, can be projected to
+  /// \f$\partial \xi / \partial \mathbf{q}\f$ or \f$\mathbf{F}_q\f$ into `sum_dxdq`:
+  /// @code
+  /// cvm::real sum_dxdq[4] = {0, 0, 0, 0};
+  /// for (size_t i = 0; i < main_group_size(); ++i) {
+  ///   const cvm::rvector v = grad_or_force_on_rotated_main_group(i);
+  ///   const cvm::rvector x = unrotated_main_group_positions(i);
+  ///   cvm::quaternion const dxdq = position_derivative_inner(x, v);
+  ///   sum_dxdq[0] += dxdq[0];
+  ///   sum_dxdq[1] += dxdq[1];
+  ///   sum_dxdq[2] += dxdq[2];
+  ///   sum_dxdq[3] += dxdq[3];
+  /// }
+  /// @endcode
+  inline cvm::quaternion position_derivative_inner(cvm::rvector const &pos,
+                                            cvm::rvector const &vec) const {
+    return cvm::quaternion(2.0 * (vec.x * ( q0 * pos.x - q3 * pos.y + q2 * pos.z) +
+                                  vec.y * ( q3 * pos.x + q0 * pos.y - q1 * pos.z) +
+                                  vec.z * (-q2 * pos.x + q1 * pos.y + q0 * pos.z)),
+                           2.0 * (vec.x * ( q1 * pos.x + q2 * pos.y + q3 * pos.z) +
+                                  vec.y * ( q2 * pos.x - q1 * pos.y - q0 * pos.z) +
+                                  vec.z * ( q3 * pos.x + q0 * pos.y - q1 * pos.z)),
+                           2.0 * (vec.x * (-q2 * pos.x + q1 * pos.y + q0 * pos.z) +
+                                  vec.y * ( q1 * pos.x + q2 * pos.y + q3 * pos.z) +
+                                  vec.z * (-q0 * pos.x + q3 * pos.y - q2 * pos.z)),
+                           2.0 * (vec.x * (-q3 * pos.x - q0 * pos.y + q1 * pos.z) +
+                                  vec.y * ( q0 * pos.x - q3 * pos.y + q2 * pos.z) +
+                                  vec.z * ( q1 * pos.x + q2 * pos.y + q3 * pos.z)));
+  }
 
 
   /// \brief Return the cosine between the orientation frame
@@ -1320,59 +1344,50 @@ public:
 
 };
 
+#ifndef COLVARS_LAMMPS
+namespace NR {
+int diagonalize_matrix(cvm::real m[4][4],
+                        cvm::real eigval[4],
+                        cvm::real eigvec[4][4]);
+}
+#endif
+
 
 /// \brief A rotation between two sets of coordinates (for the moment
 /// a wrapper for colvarmodule::quaternion)
 class colvarmodule::rotation
 {
-public:
-
-  /// \brief The rotation itself (implemented as a quaternion)
-  cvm::quaternion q;
-
-  /// \brief Eigenvalue corresponding to the optimal rotation
-  cvm::real lambda;
-
-  /// \brief Perform gradient tests
-  bool b_debug_gradients;
-
+private:
   /// Correlation matrix C (3, 3)
   cvm::rmatrix C;
 
   /// Overlap matrix S (4, 4)
-  cvm::matrix2d<cvm::real> S;
+  cvm::real S[4][4];
 
   /// Eigenvalues of S
-  cvm::vector1d<cvm::real> S_eigval;
+  cvm::real S_eigval[4];
 
   /// Eigenvectors of S
-  cvm::matrix2d<cvm::real> S_eigvec;
+  cvm::real S_eigvec[4][4];
 
   /// Used for debugging gradients
-  cvm::matrix2d<cvm::real> S_backup;
+  cvm::real S_backup[4][4];
 
-  /// Derivatives of S
-  std::vector< cvm::matrix2d<cvm::rvector> > dS_1,  dS_2;
-  /// Derivatives of leading eigenvalue
-  std::vector< cvm::rvector >                dL0_1, dL0_2;
-  /// Derivatives of leading eigenvector
-  std::vector< cvm::vector1d<cvm::rvector> > dQ0_1, dQ0_2;
+public:
+  /// \brief Perform gradient tests
+  bool b_debug_gradients;
 
-  /// Allocate space for the derivatives of the rotation
-  inline void request_group1_gradients(size_t n)
-  {
-    dS_1.resize(n, cvm::matrix2d<cvm::rvector>(4, 4));
-    dL0_1.resize(n, cvm::rvector(0.0, 0.0, 0.0));
-    dQ0_1.resize(n, cvm::vector1d<cvm::rvector>(4));
-  }
+  /// \brief The rotation itself (implemented as a quaternion)
+  cvm::quaternion q;
 
-  /// Allocate space for the derivatives of the rotation
-  inline void request_group2_gradients(size_t n)
-  {
-    dS_2.resize(n, cvm::matrix2d<cvm::rvector>(4, 4));
-    dL0_2.resize(n, cvm::rvector(0.0, 0.0, 0.0));
-    dQ0_2.resize(n, cvm::vector1d<cvm::rvector>(4));
-  }
+  template <typename T1, typename T2>
+  friend struct rotation_derivative;
+
+  template<typename T1, typename T2>
+  friend void debug_gradients(
+    cvm::rotation &rot,
+    const std::vector<T1> &pos1,
+    const std::vector<T2> &pos2);
 
   /// \brief Calculate the optimal rotation and store the
   /// corresponding eigenvalue and eigenvector in the arguments l0 and
@@ -1385,6 +1400,8 @@ public:
   /// J Comput Chem. 25(15):1849-57 (2004)
   /// DOI: 10.1002/jcc.20110  PubMed: 15376254
   void calc_optimal_rotation(std::vector<atom_pos> const &pos1,
+                             std::vector<atom_pos> const &pos2);
+  void calc_optimal_rotation(std::vector<cvm::atom> const &pos1,
                              std::vector<atom_pos> const &pos2);
 
   /// Initialize member data
@@ -1520,6 +1537,11 @@ protected:
   /// Build the correlation matrix C (used by calc_optimal_rotation())
   void build_correlation_matrix(std::vector<cvm::atom_pos> const &pos1,
                                 std::vector<cvm::atom_pos> const &pos2);
+  void build_correlation_matrix(std::vector<cvm::atom> const &pos1,
+                                std::vector<cvm::atom_pos> const &pos2);
+
+  /// \brief Actual implementation of `calc_optimal_rotation` (and called by it)
+  void calc_optimal_rotation_impl();
 
   /// Compute the overlap matrix S (used by calc_optimal_rotation())
   void compute_overlap_matrix();

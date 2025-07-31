@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -46,7 +46,9 @@ template <typename T> static Min *minimize_creator(LAMMPS *lmp)
 
 /* ---------------------------------------------------------------------- */
 
-Update::Update(LAMMPS *lmp) : Pointers(lmp)
+Update::Update(LAMMPS *lmp) :
+    Pointers(lmp), unit_style(nullptr), integrate(nullptr), integrate_style(nullptr),
+    minimize(nullptr), minimize_style(nullptr), integrate_map(nullptr), minimize_map(nullptr)
 {
   char *str;
 
@@ -61,19 +63,14 @@ Update::Update(LAMMPS *lmp) : Pointers(lmp)
   restrict_output = 0;
   setupflag = 0;
   multireplica = 0;
+  nsteps = 0;
 
   eflag_global = vflag_global = -1;
   eflag_atom = vflag_atom = 0;
 
   dt_default = 1;
   dt = 0.0;
-  unit_style = nullptr;
   set_units("lj");
-
-  integrate_style = nullptr;
-  integrate = nullptr;
-  minimize_style = nullptr;
-  minimize = nullptr;
 
   integrate_map = new IntegrateCreatorMap();
 
@@ -102,6 +99,13 @@ Update::Update(LAMMPS *lmp) : Pointers(lmp)
 
 Update::~Update()
 {
+  // restore default styles to avoid segfaults from plugins
+  char *str = (char *) "verlet";
+  create_integrate(1, &str, 1);
+
+  str = (char *) "cg";
+  create_minimize(1, &str, 1);
+
   delete[] unit_style;
 
   delete[] integrate_style;
@@ -311,7 +315,7 @@ void Update::set_units(const char *style)
     neighbor->skin = 0.1;
 
   } else
-    error->all(FLERR, "Illegal units command");
+    error->all(FLERR, "Unknown units style {}", style);
 
   delete[] unit_style;
   unit_style = utils::strdup(style);
@@ -328,10 +332,13 @@ void Update::set_units(const char *style)
 
 void Update::create_integrate(int narg, char **arg, int trysuffix)
 {
-  if (narg < 1) error->all(FLERR, "Illegal run_style command");
+  if (narg < 1) utils::missing_cmd_args(FLERR, "run_style", error);
 
   delete[] integrate_style;
   delete integrate;
+  // temporarily assign the style name without suffix (for error messages during creation)
+  integrate_style = utils::strdup(arg[0]);
+  integrate = nullptr;
 
   int sflag;
 
@@ -346,9 +353,12 @@ void Update::create_integrate(int narg, char **arg, int trysuffix)
     estyle += "/";
     if (sflag == 1)
       estyle += lmp->suffix;
-    else
+    else if (sflag == 2)
       estyle += lmp->suffix2;
+    else if ((sflag == 3) && lmp->non_pair_suffix())
+      estyle += lmp->non_pair_suffix();
   }
+  delete[] integrate_style;
   integrate_style = utils::strdup(estyle);
 }
 
@@ -359,9 +369,9 @@ void Update::create_integrate(int narg, char **arg, int trysuffix)
 void Update::new_integrate(char *style, int narg, char **arg, int trysuffix, int &sflag)
 {
   if (trysuffix && lmp->suffix_enable) {
-    if (lmp->suffix) {
-      sflag = 1;
-      std::string estyle = style + std::string("/") + lmp->suffix;
+    if (lmp->non_pair_suffix()) {
+      sflag = 1 + 2 * lmp->pair_only_flag;
+      std::string estyle = style + std::string("/") + lmp->non_pair_suffix();
       if (integrate_map->find(estyle) != integrate_map->end()) {
         IntegrateCreator &integrate_creator = (*integrate_map)[estyle];
         integrate = integrate_creator(lmp, narg, arg);
@@ -387,17 +397,20 @@ void Update::new_integrate(char *style, int narg, char **arg, int trysuffix, int
     return;
   }
 
-  error->all(FLERR, "Illegal integrate style");
+  error->all(FLERR, "Unknown integrate style {}", style);
 }
 
 /* ---------------------------------------------------------------------- */
 
 void Update::create_minimize(int narg, char **arg, int trysuffix)
 {
-  if (narg < 1) error->all(FLERR, "Illegal run_style command");
+  if (narg < 1) utils::missing_cmd_args(FLERR, "minimize_style", error);
 
   delete[] minimize_style;
   delete minimize;
+  // temporarily assign the style name without suffix (for error messages during creation)
+  minimize_style = utils::strdup(arg[0]);
+  minimize = nullptr;
 
   int sflag;
   new_minimize(arg[0], narg - 1, &arg[1], trysuffix, sflag);
@@ -407,9 +420,12 @@ void Update::create_minimize(int narg, char **arg, int trysuffix)
     estyle += "/";
     if (sflag == 1)
       estyle += lmp->suffix;
-    else
+    else if (sflag == 2)
       estyle += lmp->suffix2;
+    else if ((sflag == 3) && lmp->non_pair_suffix())
+      estyle += lmp->non_pair_suffix();
   }
+  delete[] minimize_style;
   minimize_style = utils::strdup(estyle);
 }
 
@@ -420,9 +436,9 @@ void Update::create_minimize(int narg, char **arg, int trysuffix)
 void Update::new_minimize(char *style, int /* narg */, char ** /* arg */, int trysuffix, int &sflag)
 {
   if (trysuffix && lmp->suffix_enable) {
-    if (lmp->suffix) {
-      sflag = 1;
-      std::string estyle = style + std::string("/") + lmp->suffix;
+    if (lmp->non_pair_suffix()) {
+      sflag = 1 + 2 * lmp->pair_only_flag;
+      std::string estyle = style + std::string("/") + lmp->non_pair_suffix();
       if (minimize_map->find(estyle) != minimize_map->end()) {
         MinimizeCreator &minimize_creator = (*minimize_map)[estyle];
         minimize = minimize_creator(lmp);
@@ -448,7 +464,7 @@ void Update::new_minimize(char *style, int /* narg */, char ** /* arg */, int tr
     return;
   }
 
-  error->all(FLERR, "Illegal minimize style");
+  error->all(FLERR, "Unknown minimize style {}", style);
 }
 
 /* ----------------------------------------------------------------------

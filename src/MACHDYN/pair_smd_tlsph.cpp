@@ -13,7 +13,7 @@
 /* ----------------------------------------------------------------------
  LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
  https://www.lammps.org/, Sandia National Laboratories
- Steve Plimpton, sjplimp@sandia.gov
+ LAMMPS development team: developers@lammps.org
 
  Copyright (2003) Sandia Corporation.  Under the terms of Contract
  DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -34,6 +34,7 @@
 #include "fix.h"
 #include "force.h"
 #include "group.h"
+#include "info.h"
 #include "memory.h"
 #include "modify.h"
 #include "neighbor.h"
@@ -51,11 +52,9 @@ using namespace Eigen;
 using namespace LAMMPS_NS;
 using namespace SMD_Math;
 
-#define JAUMANN false
-#define DETF_MIN 0.2 // maximum compression deformation allow
-#define DETF_MAX 2.0 // maximum tension deformation allowed
-#define TLSPH_DEBUG 0
-#define PLASTIC_STRAIN_AVERAGE_WINDOW 100.0
+static constexpr bool JAUMANN = false;
+static constexpr double DETF_MIN = 0.2; // maximum compression deformation allow
+static constexpr double DETF_MAX = 2.0; // maximum tension deformation allowed
 
 /* ---------------------------------------------------------------------- */
 
@@ -143,11 +142,11 @@ void PairTlsph::PreCompute() {
   int nlocal = atom->nlocal;
   int jnum, jj, i, j, itype, idim;
 
-  tagint **partner = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>( modify->fix[ifix_tlsph]))->partner;
-  int *npartner = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>( modify->fix[ifix_tlsph]))->npartner;
-  float **wfd_list = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>( modify->fix[ifix_tlsph]))->wfd_list;
-  float **wf_list = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>( modify->fix[ifix_tlsph]))->wf_list;
-  float **degradation_ij = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>( modify->fix[ifix_tlsph]))->degradation_ij;
+  tagint **partner = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>(modify->fix[ifix_tlsph]))->partner;
+  int *npartner = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>(modify->fix[ifix_tlsph]))->npartner;
+  float **wfd_list = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>(modify->fix[ifix_tlsph]))->wfd_list;
+  float **wf_list = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>(modify->fix[ifix_tlsph]))->wf_list;
+  float **degradation_ij = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>(modify->fix[ifix_tlsph]))->degradation_ij;
   double r0, r0Sq, wf, wfd, h, irad, voli, volj, scale, shepardWeight;
   Vector3d dx, dx0, dv, g;
   Matrix3d Ktmp, Ftmp, Fdottmp, L, U, eye;
@@ -221,7 +220,7 @@ void PairTlsph::PreCompute() {
         dx = xj - xi;
 
         if (periodic)
-          domain->minimum_image(dx0(0), dx0(1), dx0(2));
+          domain->minimum_image(FLERR, dx0(0), dx0(1), dx0(2));
 
         r0Sq = dx0.squaredNorm();
         h = irad + radius[j];
@@ -269,7 +268,7 @@ void PairTlsph::PreCompute() {
       } else {
         status = PolDec(Fincr[i], R[i], U, false); // polar decomposition of the deformation gradient, F = R * U
         if (!status) {
-          error->message(FLERR, "Polar decomposition of deformation gradient failed.\n");
+          utils::logmesg(lmp, "Polar decomposition of deformation gradient failed.\n");
           mol[i] = -1;
         } else {
           Fincr[i] = R[i] * U;
@@ -421,12 +420,12 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
   Vector3d xi, xj, vi, vj, f_visc, sumForces, f_spring;
   int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
 
-  tagint **partner = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>( modify->fix[ifix_tlsph]))->partner;
-  int *npartner = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>( modify->fix[ifix_tlsph]))->npartner;
-  float **wfd_list = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>( modify->fix[ifix_tlsph]))->wfd_list;
-  float **wf_list = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>( modify->fix[ifix_tlsph]))->wf_list;
-  float **degradation_ij = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>( modify->fix[ifix_tlsph]))->degradation_ij;
-  float **energy_per_bond = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>( modify->fix[ifix_tlsph]))->energy_per_bond;
+  tagint **partner = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>(modify->fix[ifix_tlsph]))->partner;
+  int *npartner = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>(modify->fix[ifix_tlsph]))->npartner;
+  float **wfd_list = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>(modify->fix[ifix_tlsph]))->wfd_list;
+  float **wf_list = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>(modify->fix[ifix_tlsph]))->wf_list;
+  float **degradation_ij = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>(modify->fix[ifix_tlsph]))->degradation_ij;
+  float **energy_per_bond = (dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>(modify->fix[ifix_tlsph]))->energy_per_bond;
   Matrix3d eye;
   eye.setIdentity();
 
@@ -489,7 +488,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
       }
 
       if (periodic)
-        domain->minimum_image(dx0(0), dx0(1), dx0(2));
+        domain->minimum_image(FLERR, dx0(0), dx0(1), dx0(2));
 
       // check that distance between i and j (in the reference config) is less than cutoff
       dx0 = x0j - x0i;
@@ -1555,10 +1554,11 @@ double PairTlsph::init_one(int i, int j) {
     allocate();
 
   if (setflag[i][j] == 0)
-    error->all(FLERR, "All pair coeffs are not set");
+    error->all(FLERR, Error::NOLASTLINE,
+               "All pair coeffs are not set. Status:\n" + Info::get_pair_coeff_status(lmp));
 
   if (force->newton == 1)
-    error->all(FLERR, "Pair style tlsph requires newton off");
+    error->all(FLERR, Error::NOLASTLINE, "Pair style tlsph requires newton off");
 
 // cutoff = sum of max I,J radii for
 // dynamic/dynamic & dynamic/frozen interactions, but not frozen/frozen
@@ -1606,13 +1606,13 @@ void PairTlsph::init_style() {
     error->all(FLERR, "Pair style tlsph requires its particles to be part of a group named tlsph. This group does not exist.");
 
   if (fix_tlsph_reference_configuration == nullptr) {
-    auto fixarg = new char*[3];
+    auto *fixarg = new char*[3];
     fixarg[0] = (char *) "SMD_TLSPH_NEIGHBORS";
     fixarg[1] = (char *) "tlsph";
     fixarg[2] = (char *) "SMD_TLSPH_NEIGHBORS";
     modify->add_fix(3, fixarg);
     delete[] fixarg;
-    fix_tlsph_reference_configuration = dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>( modify->fix[modify->nfix - 1]);
+    fix_tlsph_reference_configuration = dynamic_cast<FixSMD_TLSPH_ReferenceConfiguration *>(modify->fix[modify->nfix - 1]);
     fix_tlsph_reference_configuration->pair = this;
   }
 

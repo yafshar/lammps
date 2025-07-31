@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -20,12 +20,11 @@
 #include "memory.h"
 #include "neighbor.h"
 
-#include <cctype>
 #include <cstring>
 
 using namespace LAMMPS_NS;
 
-#define EXTRA 1000
+static constexpr int EXTRA = 1000;
 
 /* ---------------------------------------------------------------------- */
 
@@ -49,14 +48,7 @@ DihedralHybrid::~DihedralHybrid()
     delete[] keywords;
   }
 
-  if (allocated) {
-    memory->destroy(setflag);
-    memory->destroy(map);
-    delete[] ndihedrallist;
-    delete[] maxdihedral;
-    for (int i = 0; i < nstyles; i++) memory->destroy(dihedrallist[i]);
-    delete[] dihedrallist;
-  }
+  DihedralHybrid::deallocate();
 }
 
 /* ---------------------------------------------------------------------- */
@@ -173,6 +165,20 @@ void DihedralHybrid::allocate()
   for (int m = 0; m < nstyles; m++) dihedrallist[m] = nullptr;
 }
 
+void DihedralHybrid::deallocate()
+{
+  if (!allocated) return;
+
+  allocated = 0;
+
+  memory->destroy(setflag);
+  memory->destroy(map);
+  delete[] ndihedrallist;
+  delete[] maxdihedral;
+  for (int i = 0; i < nstyles; i++) memory->destroy(dihedrallist[i]);
+  delete[] dihedrallist;
+}
+
 /* ----------------------------------------------------------------------
    create one dihedral style for each arg in list
 ------------------------------------------------------------------------- */
@@ -192,15 +198,7 @@ void DihedralHybrid::settings(int narg, char **arg)
     delete[] keywords;
   }
 
-  if (allocated) {
-    memory->destroy(setflag);
-    memory->destroy(map);
-    delete[] ndihedrallist;
-    delete[] maxdihedral;
-    for (i = 0; i < nstyles; i++) memory->destroy(dihedrallist[i]);
-    delete[] dihedrallist;
-  }
-  allocated = 0;
+  deallocate();
 
   // allocate list of sub-styles
 
@@ -278,7 +276,8 @@ void DihedralHybrid::coeff(int narg, char **arg)
     else if (strcmp(arg[1], "bb13") == 0)
       error->all(FLERR, "BondBond13 coeff for hybrid dihedral has invalid format");
     else
-      error->all(FLERR, "Dihedral coeff for hybrid has invalid style");
+      error->all(FLERR, "Expected hybrid sub-style instead of {} in dihedral_coeff command",
+                 arg[1]);
   }
 
   // move 1st arg to 2nd arg
@@ -313,8 +312,26 @@ void DihedralHybrid::coeff(int narg, char **arg)
 
 void DihedralHybrid::init_style()
 {
+  // error if sub-style is not used
+
+  int used;
+  for (int istyle = 0; istyle < nstyles; ++istyle) {
+    used = 0;
+    for (int itype = 1; itype <= atom->ndihedraltypes; ++itype)
+      if (map[itype] == istyle) used = 1;
+    if (used == 0) error->all(FLERR, "Dihedral hybrid sub-style {} is not used", keywords[istyle]);
+  }
+
   for (int m = 0; m < nstyles; m++)
     if (styles[m]) styles[m]->init_style();
+}
+
+/* ---------------------------------------------------------------------- */
+
+int DihedralHybrid::check_itype(int itype, char *substyle)
+{
+  if (strcmp(keywords[map[itype]], substyle) == 0) return 1;
+  return 0;
 }
 
 /* ----------------------------------------------------------------------
@@ -355,7 +372,7 @@ void DihedralHybrid::read_restart(FILE *fp)
     keywords[m] = new char[n];
     if (me == 0) utils::sfread(FLERR, keywords[m], sizeof(char), n, fp, nullptr, error);
     MPI_Bcast(keywords[m], n, MPI_CHAR, 0, world);
-    styles[m] = force->new_dihedral(keywords[m], 0, dummy);
+    styles[m] = force->new_dihedral(keywords[m], 1, dummy);
     styles[m]->read_restart_settings(fp);
   }
 }

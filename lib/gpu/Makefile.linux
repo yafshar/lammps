@@ -1,4 +1,4 @@
-# /* ----------------------------------------------------------------------   
+# /* ----------------------------------------------------------------------
 #  Generic Linux Makefile for CUDA
 #     - Change CUDA_ARCH for your GPU
 # ------------------------------------------------------------------------- */
@@ -45,8 +45,14 @@ CUDA_ARCH = -arch=sm_60
 #CUDA_ARCH = -arch=sm_80
 #CUDA_ARCH = -arch=sm_86
 
-# this setting should match LAMMPS Makefile
-# one of LAMMPS_SMALLBIG (default), LAMMPS_BIGBIG and LAMMPS_SMALLSMALL
+# Lovelace hardware
+#CUDA_ARCH = -arch=sm_89
+
+# Hopper hardware
+#CUDA_ARCH = -arch=sm_90
+
+# this setting should match the LAMMPS Makefile
+# either LAMMPS_SMALLBIG (default) or LAMMPS_BIGBIG
 
 LMP_INC = -DLAMMPS_SMALLBIG
 

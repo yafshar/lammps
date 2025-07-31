@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -17,26 +17,20 @@
 ------------------------------------------------------------------------- */
 
 #include "pppm_tip4p.h"
-#include <mpi.h>
-#include <cmath>
+
 #include "atom.h"
 #include "domain.h"
 #include "force.h"
 #include "error.h"
 #include "math_const.h"
 
+#include <cmath>
+
 using namespace LAMMPS_NS;
 using namespace MathConst;
 
-#define OFFSET 16384
-
-#ifdef FFT_SINGLE
-#define ZEROF 0.0f
-#define ONEF  1.0f
-#else
-#define ZEROF 0.0
-#define ONEF  1.0
-#endif
+static constexpr FFT_SCALAR ZEROF = 0.0;
+static constexpr int OFFSET = 16384;
 
 /* ---------------------------------------------------------------------- */
 
@@ -74,7 +68,7 @@ void PPPMTIP4P::particle_map()
   int nlocal = atom->nlocal;
 
   if (!std::isfinite(boxlo[0]) || !std::isfinite(boxlo[1]) || !std::isfinite(boxlo[2]))
-    error->one(FLERR,"Non-numeric box dimensions - simulation unstable");
+    error->one(FLERR,"Non-numeric box dimensions - simulation unstable" + utils::errorurl(6));
 
   int flag = 0;
   for (int i = 0; i < nlocal; i++) {
@@ -104,7 +98,7 @@ void PPPMTIP4P::particle_map()
 
   int flag_all;
   MPI_Allreduce(&flag,&flag_all,1,MPI_INT,MPI_SUM,world);
-  if (flag_all) error->all(FLERR,"Out of range atoms - cannot compute PPPM");
+  if (flag_all) error->all(FLERR, Error::NOLASTLINE, "Out of range atoms - cannot compute PPPM" + utils::errorurl(4));
 }
 
 /* ----------------------------------------------------------------------
@@ -482,7 +476,7 @@ void PPPMTIP4P::fieldforce_peratom()
   Fix handling of TIP4P dipole compared to PPPMDisp::slabcorr
 ------------------------------------------------------------------------- */
 
-#define SMALL 0.00001
+static constexpr double SMALL = 0.00001;
 
 void PPPMTIP4P::slabcorr()
 {
@@ -490,7 +484,7 @@ void PPPMTIP4P::slabcorr()
 
   double *q = atom->q;
   double **x = atom->x;
-  double zprd = domain->zprd;
+  double zprd_slab = domain->zprd*slab_volfactor;
   int nlocal = atom->nlocal;
   int *type = atom->type;
   double *xi, xM[3]; int iH1, iH2;  //for TIP4P virtual site
@@ -526,7 +520,7 @@ void PPPMTIP4P::slabcorr()
   // compute corrections
 
   const double e_slabcorr = MY_2PI*(dipole_all*dipole_all -
-    qsum*dipole_r2 - qsum*qsum*zprd*zprd/12.0)/volume;
+    qsum*dipole_r2 - qsum*qsum*zprd_slab*zprd_slab/12.0)/volume;
   const double qscale = force->qqrd2e * scale;
 
   if (eflag_global) energy_1 += qscale * e_slabcorr;
@@ -537,7 +531,7 @@ void PPPMTIP4P::slabcorr()
     double efact = qscale * MY_2PI/volume;
     for (int i = 0; i < nlocal; i++)
       eatom[i] += efact * q[i]*(x[i][2]*dipole_all - 0.5*(dipole_r2 +
-        qsum*x[i][2]*x[i][2]) - qsum*zprd*zprd/12.0);
+        qsum*x[i][2]*x[i][2]) - qsum*zprd_slab*zprd_slab/12.0);
   }
 
   // add on force corrections

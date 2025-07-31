@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -36,8 +36,8 @@ static void trisolve(int n,double A[][3],double y[]) {
 void makespline(int ntab,int stride,double tab[],double C[][4]) {
   int n = 3*(ntab-1);
 
-  double (*A)[3] = new double[n][3];
-  double *y = new double[n];
+  auto *A = new double[n][3];
+  auto *y = new double[n];
 
   double h_left,h_right,d;
   int i,j;

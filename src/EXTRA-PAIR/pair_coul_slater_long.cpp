@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,6 +21,7 @@
 #include "atom.h"
 #include "comm.h"
 #include "error.h"
+#include "ewald_const.h"
 #include "force.h"
 #include "kspace.h"
 #include "memory.h"
@@ -31,21 +32,13 @@
 #include <cstring>
 
 using namespace LAMMPS_NS;
-
-#define EWALD_F   1.12837917
-#define EWALD_P   0.3275911
-#define A1        0.254829592
-#define A2       -0.284496736
-#define A3        1.421413741
-#define A4       -1.453152027
-#define A5        1.061405429
+using namespace EwaldConst;
 
 /* ---------------------------------------------------------------------- */
 
 PairCoulSlaterLong::PairCoulSlaterLong(LAMMPS *lmp) : Pair(lmp)
 {
   ewaldflag = pppmflag = 1;
-  qdist = 0.0;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -116,15 +109,15 @@ void PairCoulSlaterLong::compute(int eflag, int vflag)
 
       if (rsq < cut_coulsq) {
         r2inv = 1.0/rsq;
-          r = sqrt(rsq);
-          grij = g_ewald * r;
-          expm2 = exp(-grij*grij);
-          t = 1.0 / (1.0 + EWALD_P*grij);
-          erfc = t * (A1+t*(A2+t*(A3+t*(A4+t*A5)))) * expm2;
-          slater_term = exp(-2*r/lamda)*(1 + (2*r/lamda*(1+r/lamda)));
-          prefactor = qqrd2e * scale[itype][jtype] * qtmp*q[j]/r;
-          forcecoul = prefactor * (erfc + EWALD_F*grij*expm2 - slater_term);
-          if (factor_coul < 1.0) forcecoul -= (1.0-factor_coul)*prefactor;
+        r = sqrt(rsq);
+        grij = g_ewald * r;
+        expm2 = exp(-grij*grij);
+        t = 1.0 / (1.0 + EWALD_P*grij);
+        erfc = t * (A1+t*(A2+t*(A3+t*(A4+t*A5)))) * expm2;
+        slater_term = exp(-2*r/lamda)*(1 + (2*r/lamda*(1+r/lamda)));
+        prefactor = qqrd2e * scale[itype][jtype] * qtmp*q[j]/r;
+        forcecoul = prefactor * (erfc + EWALD_F*grij*expm2 - slater_term);
+        if (factor_coul < 1.0) forcecoul -= (1.0-factor_coul)*prefactor*(1-slater_term);
 
         fpair = forcecoul * r2inv;
 
@@ -138,8 +131,8 @@ void PairCoulSlaterLong::compute(int eflag, int vflag)
         }
 
         if (eflag) {
-            ecoul = prefactor*(erfc - (1 + r/lamda)*exp(-2*r/lamda));
-          if (factor_coul < 1.0) ecoul -= (1.0-factor_coul)*prefactor;
+          ecoul = prefactor*(erfc - (1 + r/lamda)*exp(-2*r/lamda));
+          if (factor_coul < 1.0) ecoul -= (1.0-factor_coul)*prefactor*(1.0-(1 + r/lamda)*exp(-2*r/lamda));
         }
 
         if (evflag) ev_tally(i,j,nlocal,newton_pair,
@@ -188,7 +181,7 @@ void PairCoulSlaterLong::settings(int narg, char **arg)
 
 void PairCoulSlaterLong::coeff(int narg, char **arg)
 {
-  if (narg != 2) error->all(FLERR,"Incorrect args for pair coefficients");
+  if (narg != 2) error->all(FLERR,"Incorrect args for pair coefficients" + utils::errorurl(21));
   if (!allocated) allocate();
 
   int ilo,ihi,jlo,jhi;
@@ -204,7 +197,7 @@ void PairCoulSlaterLong::coeff(int narg, char **arg)
     }
   }
 
-  if (count == 0) error->all(FLERR,"Incorrect args for pair coefficients");
+  if (count == 0) error->all(FLERR,"Incorrect args for pair coefficients" + utils::errorurl(21));
 }
 
 /* ----------------------------------------------------------------------
@@ -220,7 +213,7 @@ void PairCoulSlaterLong::init_style()
 
   cut_coulsq = cut_coul * cut_coul;
 
-  // insure use of KSpace long-range solver, set g_ewald
+  // ensure use of KSpace long-range solver, set g_ewald
 
  if (force->kspace == nullptr)
     error->all(FLERR,"Pair style requires a KSpace style");
@@ -238,7 +231,7 @@ void PairCoulSlaterLong::init_style()
 double PairCoulSlaterLong::init_one(int i, int j)
 {
   scale[j][i] = scale[i][j];
-  return cut_coul+2.0*qdist;
+  return cut_coul;
 }
 
 /* ----------------------------------------------------------------------

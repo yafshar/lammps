@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -76,6 +76,7 @@ NeighRequest::NeighRequest(LAMMPS *_lmp) : Pointers(_lmp)
   skip = 0;
   iskip = nullptr;
   ijskip = nullptr;
+  molskip = REGULAR;
 
   // only set when command = 1;
 
@@ -86,6 +87,7 @@ NeighRequest::NeighRequest(LAMMPS *_lmp) : Pointers(_lmp)
   skiplist = -1;
   off2on = 0;
   copy = 0;
+  trim = 0;
   copylist = -1;
   halffull = 0;
   halffulllist = -1;
@@ -98,9 +100,8 @@ NeighRequest::NeighRequest(LAMMPS *_lmp) : Pointers(_lmp)
 
 /* ---------------------------------------------------------------------- */
 
-NeighRequest::NeighRequest(LAMMPS *_lmp, int idx, void *ptr, int num) : NeighRequest(_lmp)
+NeighRequest::NeighRequest(LAMMPS *_lmp, void *ptr, int num) : NeighRequest(_lmp)
 {
-  index = idx;
   requestor = ptr;
   requestor_instance = num;
 }
@@ -183,6 +184,8 @@ int NeighRequest::identical(NeighRequest *other)
 
 int NeighRequest::same_skip(NeighRequest *other)
 {
+  if (molskip != other->molskip) return 0;
+
   const int ntypes = atom->ntypes;
   int same = 1;
 
@@ -305,6 +308,12 @@ void NeighRequest::set_skip(int *_iskip, int **_ijskip)
   skip = 1;
   iskip = _iskip;
   ijskip = _ijskip;
+}
+
+void NeighRequest::set_molskip(int _molskip)
+{
+  skip = 1;
+  molskip = _molskip;
 }
 
 void NeighRequest::enable_full()

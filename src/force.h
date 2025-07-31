@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -86,19 +86,19 @@ class Force : protected Pointers {
   KSpace *kspace;
   char *kspace_style;
 
-  typedef Pair *(*PairCreator)(LAMMPS *);
-  typedef Bond *(*BondCreator)(LAMMPS *);
-  typedef Angle *(*AngleCreator)(LAMMPS *);
-  typedef Dihedral *(*DihedralCreator)(LAMMPS *);
-  typedef Improper *(*ImproperCreator)(LAMMPS *);
-  typedef KSpace *(*KSpaceCreator)(LAMMPS *);
+  using PairCreator = Pair *(*)(LAMMPS *);
+  using BondCreator = Bond *(*)(LAMMPS *);
+  using AngleCreator = Angle *(*)(LAMMPS *);
+  using DihedralCreator = Dihedral *(*)(LAMMPS *);
+  using ImproperCreator = Improper *(*)(LAMMPS *);
+  using KSpaceCreator = KSpace *(*)(LAMMPS *);
 
-  typedef std::map<std::string, PairCreator> PairCreatorMap;
-  typedef std::map<std::string, BondCreator> BondCreatorMap;
-  typedef std::map<std::string, AngleCreator> AngleCreatorMap;
-  typedef std::map<std::string, DihedralCreator> DihedralCreatorMap;
-  typedef std::map<std::string, ImproperCreator> ImproperCreatorMap;
-  typedef std::map<std::string, KSpaceCreator> KSpaceCreatorMap;
+  using PairCreatorMap = std::map<std::string, PairCreator>;
+  using BondCreatorMap = std::map<std::string, BondCreator>;
+  using AngleCreatorMap = std::map<std::string, AngleCreator>;
+  using DihedralCreatorMap = std::map<std::string, DihedralCreator>;
+  using ImproperCreatorMap = std::map<std::string, ImproperCreator>;
+  using KSpaceCreatorMap = std::map<std::string, KSpaceCreator>;
 
   PairCreatorMap *pair_map;
   BondCreatorMap *bond_map;
@@ -115,6 +115,7 @@ class Force : protected Pointers {
   int special_dihedral;      // 0 if defined dihedrals are ignored
                              // 1 if only weight 1,4 atoms if in a dihedral
   int special_extra;         // extra space for added bonds
+  int special_onefive;       // 0 if 1-5 neighbors are not stored, 1 if yes
 
   Force(class LAMMPS *);
   ~Force() override;

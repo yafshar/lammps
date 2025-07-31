@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -31,11 +31,13 @@ class Group : protected Pointers {
 
   Group(class LAMMPS *);
   ~Group() override;
+
   void assign(int, char **);                  // assign atoms to a group
   void assign(const std::string &);           // convenience function
   void create(const std::string &, int *);    // add flagged atoms to a group
   int find(const std::string &);              // lookup name in list of groups
   int find_or_create(const char *);           // lookup name or create new group
+  int get_bitmask_by_id(const std::string &, int, const std::string &, const std::string &);
   void write_restart(FILE *);
   void read_restart(FILE *);
 

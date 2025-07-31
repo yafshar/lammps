@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -1580,8 +1580,8 @@ double SNA::compute_dsfac(double r, double rcut, double sinner, double dinner)
       else if (r <= rmin0) sfac_outer = 1.0;
       else if (r > rcut) sfac_outer = 0.0;
       else {
-	double rcutfac = MY_PI / (rcut - rmin0);
-	sfac_outer = 0.5 * (cos((r - rmin0) * rcutfac) + 1.0);
+        double rcutfac = MY_PI / (rcut - rmin0);
+        sfac_outer = 0.5 * (cos((r - rmin0) * rcutfac) + 1.0);
       }
 
       // calculate sfac_inner
@@ -1595,4 +1595,3 @@ double SNA::compute_dsfac(double r, double rcut, double sinner, double dinner)
 
   return dsfac;
 }
-

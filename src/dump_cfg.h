@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -40,7 +40,7 @@ class DumpCFG : public DumpCustom {
   int convert_string(int, double *) override;
   void write_data(int, double *) override;
 
-  typedef void (DumpCFG::*FnPtrWrite)(int, double *);
+  using FnPtrWrite = void (DumpCFG::*)(int, double *);
   FnPtrWrite write_choice;    // ptr to write data functions
   void write_string(int, double *);
   void write_lines(int, double *);

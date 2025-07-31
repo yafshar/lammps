@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
          LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
          https://www.lammps.org/, Sandia National Laboratories
-         Steve Plimpton, sjplimp@sandia.gov
+         LAMMPS development team: developers@lammps.org
 
          Copyright (2003) Sandia Corporation.  Under the terms of Contract
          DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -28,7 +28,6 @@ under
 #include "memory.h"
 #include "modify.h"
 #include "neigh_list.h"
-#include "neigh_request.h"
 #include "neighbor.h"
 #include "update.h"
 
@@ -47,13 +46,13 @@ under
 using namespace LAMMPS_NS;
 
 static const char cite_user_ptm_package[] =
-    "PTM package:\n\n"
+    "PTM package: doi:10.1088/0965-0393/24/5/055007\n\n"
     "@Article{larsen2016ptm,\n"
-    " author={Larsen, Peter Mahler and Schmidt, S{\\o}ren and Schi{\\o}tz, "
-    "Jakob},\n"
-    " title={Robust structural identification via polyhedral template "
-    "matching},\n"
-    " journal={Modelling~Simul.~Mater.~Sci.~Eng.},\n"
+    " author={Larsen, Peter Mahler and Schmidt, S{\\o}ren and\n"
+    "    Schi{\\o}tz, Jakob},\n"
+    " title={Robust Structural Identification via Polyhedral Template\n"
+    "    Matching},\n"
+    " journal={Model.\\ Simulat.\\ Mater.\\ Sci.\\ Eng.},\n"
     " year={2016},\n"
     " number={5},\n"
     " volume={24},\n"
@@ -126,7 +125,7 @@ ComputePTMAtom::ComputePTMAtom(LAMMPS *lmp, int narg, char **arg)
   if (rmsd_threshold == 0)
     rmsd_threshold = INFINITY;
 
-  auto  group_name = (char *)"all";
+  auto *  group_name = (char *)"all";
   if (narg > 5) {
     group_name = arg[5];
   }
@@ -167,7 +166,7 @@ void ComputePTMAtom::init() {
 void ComputePTMAtom::init_list(int /* id */, NeighList *ptr) { list = ptr; }
 
 /* ---------------------------------------------------------------------- */
-
+// NOLINTBEGIN
 typedef struct
 {
   double **x;
@@ -185,14 +184,14 @@ typedef struct {
   int index;
   double d;
 } ptmnbr_t;
-
+// NOLINTEND
 static bool sorthelper_compare(ptmnbr_t const &a, ptmnbr_t const &b) {
   return a.d < b.d;
 }
 
 static int get_neighbours(void* vdata, size_t central_index, size_t atom_index, int num, size_t* nbr_indices, int32_t* numbers, double (*nbr_pos)[3])
 {
-  auto  data = (ptmnbrdata_t*)vdata;
+  auto *  data = (ptmnbrdata_t*)vdata;
   int *mask = data->mask;
   int group2bit = data->group2bit;
 

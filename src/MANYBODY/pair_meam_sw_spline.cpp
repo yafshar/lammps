@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -33,6 +33,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <exception>
 
 using namespace LAMMPS_NS;
 
@@ -384,8 +385,6 @@ void PairMEAMSWSpline::coeff(int narg, char **arg)
    set coeffs for one or more type pairs
 ------------------------------------------------------------------------- */
 
-#define MAXLINE 1024
-
 void PairMEAMSWSpline::read_file(const char* filename)
 {
   if (comm->me == 0) {
@@ -546,7 +545,7 @@ void PairMEAMSWSpline::SplineFunction::prepareSpline()
   h = (xmax-xmin)/((double)(N-1));
   hsq = h*h;
 
-  auto  u = new double[N];
+  auto *  u = new double[N];
   Y2[0] = -0.5;
   u[0] = (3.0/(X[1]-X[0])) * ((Y[1]-Y[0])/(X[1]-X[0]) - deriv0);
   for (int i = 1; i <= N-2; i++) {

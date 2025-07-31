@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -64,14 +64,14 @@ void ComputeDipole::compute_vector()
 {
   invoked_vector = update->ntimestep;
 
-  const auto x = atom->x;
-  const auto mask = atom->mask;
-  const auto type = atom->type;
-  const auto image = atom->image;
-  const auto mass = atom->mass;
-  const auto rmass = atom->rmass;
-  const auto q = atom->q;
-  const auto mu = atom->mu;
+  auto *const x = atom->x;
+  auto *const mask = atom->mask;
+  auto *const type = atom->type;
+  auto *const image = atom->image;
+  auto *const mass = atom->mass;
+  auto *const rmass = atom->rmass;
+  auto *const q = atom->q;
+  auto *const mu = atom->mu;
   const auto nlocal = atom->nlocal;
 
   double dipole[3] = {0.0, 0.0, 0.0};

@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -29,6 +29,9 @@ class FixDeform : public Fix {
   int remapflag;     // whether x,v are remapped across PBC
   int dimflag[6];    // which dims are deformed
 
+  enum { NONE, FINAL, DELTA, SCALE, VEL, ERATE, TRATE, VOLUME, WIGGLE, VARIABLE, PRESSURE, PMEAN, ERATERS };
+  enum { ONE_FROM_ONE, ONE_FROM_TWO, TWO_FROM_ONE };
+
   FixDeform(class LAMMPS *, int, char **);
   ~FixDeform() override;
   int setmask() override;
@@ -48,8 +51,6 @@ class FixDeform : public Fix {
   std::vector<Fix *> rfix;       // pointers to rigid fixes
   class Irregular *irregular;    // for migrating atoms after box flips
 
-  double TWOPI;
-
   struct Set {
     int style, substyle;
     double flo, fhi, ftilt;
@@ -67,7 +68,13 @@ class FixDeform : public Fix {
   };
   Set *set;
 
+  std::vector<int> leftover_iarg;
+  int iarg_options_start;
+
   void options(int, char **);
+  void virtual apply_volume();
+  void apply_strain();
+  void update_domain();
 };
 
 }    // namespace LAMMPS_NS

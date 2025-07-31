@@ -1,7 +1,7 @@
 /* -*- c++ -*- -----------------------------------------------------------
-   LAMMPS 2003 (July 31) - Molecular Dynamics Simulator
-   Sandia National Laboratories, www.cs.sandia.gov/~sjplimp/lammps.html
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
+   https://www.lammps.org/, Sandia National Laboratories
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -105,6 +105,7 @@ int MPI_Recv(void *buf, int count, MPI_Datatype datatype, int source, int tag, M
              MPI_Status *status);
 int MPI_Irecv(void *buf, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm comm,
               MPI_Request *request);
+int MPI_Iprobe(int source, int tag, MPI_Comm comm, int *flag, MPI_Status *status);
 int MPI_Wait(MPI_Request *request, MPI_Status *status);
 int MPI_Waitall(int n, MPI_Request *request, MPI_Status *status);
 int MPI_Waitany(int count, MPI_Request *request, int *index, MPI_Status *status);

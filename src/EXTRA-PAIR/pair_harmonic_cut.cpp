@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -35,6 +35,7 @@ using namespace MathConst;
 
 PairHarmonicCut::PairHarmonicCut(LAMMPS *lmp) : Pair(lmp), k(nullptr), cut(nullptr)
 {
+  born_matrix_enable = 1;
   writedata = 1;
 }
 
@@ -158,7 +159,7 @@ void PairHarmonicCut::settings(int narg, char ** /*arg*/)
 
 void PairHarmonicCut::coeff(int narg, char **arg)
 {
-  if (narg != 4) error->all(FLERR, "Incorrect args for pair coefficients");
+  if (narg != 4) error->all(FLERR, "Incorrect args for pair coefficients" + utils::errorurl(21));
   if (!allocated) allocate();
 
   int ilo, ihi, jlo, jhi;
@@ -178,7 +179,7 @@ void PairHarmonicCut::coeff(int narg, char **arg)
     }
   }
 
-  if (count == 0) error->all(FLERR, "Incorrect args for pair coefficients");
+  if (count == 0) error->all(FLERR, "Incorrect args for pair coefficients" + utils::errorurl(21));
 }
 
 /* ----------------------------------------------------------------------
@@ -302,6 +303,23 @@ double PairHarmonicCut::single(int /*i*/, int /*j*/, int itype, int jtype, doubl
   const double philj = factor_lj * delta * delta * k[itype][jtype];
   fforce = 2.0 * philj / (r * delta);
   return philj;
+}
+
+/* ---------------------------------------------------------------------- */
+
+void PairHarmonicCut::born_matrix(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
+                            double /*factor_coul*/, double factor_lj, double &dupair,
+                            double &du2pair)
+{
+  double r = sqrt(rsq);
+  double dr = r - cut[itype][jtype];
+
+  double du = 0;
+  double du2 = 2 * k[itype][jtype];
+  if (r > 0) du = du2 * dr;
+
+  dupair = factor_lj * du;
+  du2pair = factor_lj * du2;
 }
 
 /* ---------------------------------------------------------------------- */

@@ -2,7 +2,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -25,7 +25,6 @@
 #ifdef PAIR_CLASS
 // clang-format off
 PairStyle(reaxff,PairReaxFF);
-PairStyle(reax/c,PairReaxFF);
 // clang-format on
 #else
 
@@ -54,9 +53,10 @@ class PairReaxFF : public Pair {
   int fixbond_flag, fixspecies_flag;
   int **tmpid;
   double **tmpbo, **tmpr;
+  std::vector<std::string> eletype;
 
   ReaxFF::API *api;
-  typedef double rvec[3];
+  using rvec = double[3];
 
  protected:
   char *fix_id;

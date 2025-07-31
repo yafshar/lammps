@@ -6,6 +6,7 @@ Commands
 
    angle_coeff
    angle_style
+   angle_write
    atom_modify
    atom_style
    balance
@@ -13,7 +14,6 @@ Commands
    bond_style
    bond_write
    boundary
-   box
    change_box
    clear
    comm_modify
@@ -28,21 +28,15 @@ Commands
    dielectric
    dihedral_coeff
    dihedral_style
+   dihedral_write
    dimension
    displace_atoms
-   dump
-   dump_adios
-   dump_cfg_uef
-   dump_h5md
-   dump_image
-   dump_modify
-   dump_molfile
-   dump_netcdf
-   dump_vtk
    dynamical_matrix
    echo
    fix
    fix_modify
+   fitpod_command
+   geturl
    group
    group2ndx
    hyper
@@ -56,6 +50,7 @@ Commands
    kspace_modify
    kspace_style
    label
+   labelmap
    lattice
    log
    mass
@@ -87,10 +82,10 @@ Commands
    read_dump
    read_restart
    region
+   region2vmd
    replicate
    rerun
-   reset_atom_ids
-   reset_mol_ids
+   reset_atoms
    reset_timestep
    restart
    run

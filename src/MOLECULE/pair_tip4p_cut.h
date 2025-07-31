@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -38,12 +38,14 @@ class PairTIP4PCut : public Pair {
   void write_restart(FILE *) override;
   void read_restart(FILE *) override;
   double memory_usage() override;
+  void *extract(const char *, int &) override;
 
  protected:
   double cut_coul_global;
   double cut_coul, cut_coulsq;
   double cut_coulsqplus;    // extended value for cut_coulsq
 
+  std::string typeH_str, typeO_str, typeA_str, typeB_str;
   int typeH, typeO;    // atom types of TIP4P water H and O atoms
   int typeA, typeB;    // angle and bond types of TIP4P water
   double alpha;        // geometric constraint parameter for TIP4P

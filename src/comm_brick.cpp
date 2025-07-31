@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -35,9 +35,9 @@
 
 using namespace LAMMPS_NS;
 
-#define BUFFACTOR 1.5
-#define BUFMIN 1024
-#define BIG 1.0e20
+static constexpr double BUFFACTOR = 1.5;
+static constexpr int BUFMIN = 1024;
+static constexpr double BIG = 1.0e20;
 
 /* ---------------------------------------------------------------------- */
 
@@ -50,7 +50,7 @@ CommBrick::CommBrick(LAMMPS *lmp) :
   pbc_flag(nullptr), pbc(nullptr), firstrecv(nullptr), sendlist(nullptr),
   localsendlist(nullptr), maxsendlist(nullptr), buf_send(nullptr), buf_recv(nullptr)
 {
-  style = 0;
+  style = Comm::BRICK;
   layout = Comm::LAYOUT_UNIFORM;
   pbc_flag = nullptr;
   init_buffers();
@@ -92,7 +92,7 @@ CommBrick::CommBrick(LAMMPS * /*lmp*/, Comm *oldcomm) : Comm(*oldcomm)
   if (oldcomm->layout == Comm::LAYOUT_TILED)
     error->all(FLERR,"Cannot change to comm_style brick from tiled layout");
 
-  style = 0;
+  style = Comm::BRICK;
   layout = oldcomm->layout;
   Comm::copy_arrays(oldcomm);
   init_buffers();
@@ -133,9 +133,11 @@ void CommBrick::init()
 {
   Comm::init();
 
-  int bufextra_old = bufextra;
   init_exchange();
-  if (bufextra > bufextra_old) grow_send(maxsend+bufextra,2);
+  if (bufextra > bufextra_max) {
+    grow_send(maxsend+bufextra,2);
+    bufextra_max = bufextra;
+  }
 
   // memory for multi style communication
   // allocate in setup
@@ -207,8 +209,8 @@ void CommBrick::setup()
 
   double cut = get_comm_cutoff();
   if ((cut == 0.0) && (me == 0))
-    error->warning(FLERR,"Communication cutoff is 0.0. No ghost atoms "
-                   "will be generated. Atoms may get lost.");
+    error->warning(FLERR,"Communication cutoff is 0.0. No ghost atoms will be generated. "
+                   "Energies and forces may be wrong and atoms may get lost.");
 
   if (mode == Comm::MULTI) {
     double **cutcollectionsq = neighbor->cutcollectionsq;
@@ -397,7 +399,7 @@ void CommBrick::setup()
   // recvproc = proc to recv from at each swap
   // for mode SINGLE:
   //   slablo/slabhi = boundaries for slab of atoms to send at each swap
-  //   use -BIG/midpt/BIG to insure all atoms included even if round-off occurs
+  //   use -BIG/midpt/BIG to ensure all atoms included even if round-off occurs
   //   if round-off, atoms recvd across PBC can be < or > than subbox boundary
   //   note that borders() only loops over subset of atoms during each swap
   //   treat all as PBC here, non-PBC is handled in borders() via r/s need[][]
@@ -668,13 +670,15 @@ void CommBrick::exchange()
   atom->nghost = 0;
   atom->avec->clear_bonus();
 
-  // insure send buf has extra space for a single atom
+  // ensure send buf has extra space for a single atom
   // only need to reset if a fix can dynamically add to size of single atom
 
   if (maxexchange_fix_dynamic) {
-    int bufextra_old = bufextra;
     init_exchange();
-    if (bufextra > bufextra_old) grow_send(maxsend+bufextra,2);
+    if (bufextra > bufextra_max) {
+      grow_send(maxsend+bufextra,2);
+      bufextra_max = bufextra;
+    }
   }
 
   // subbox bounds for orthogonal or triclinic
@@ -966,7 +970,7 @@ void CommBrick::borders()
     error->one(FLERR,"Per-processor number of atoms is too large for "
                "molecular neighbor lists");
 
-  // insure send/recv buffers are long enough for all forward & reverse comm
+  // ensure send/recv buffers are long enough for all forward & reverse comm
 
   int max = MAX(maxforward*smax,maxreverse*rmax);
   if (max > maxsend) grow_send(max,0);
@@ -980,16 +984,21 @@ void CommBrick::borders()
 
 /* ----------------------------------------------------------------------
    forward communication invoked by a Pair
-   nsize used only to set recv buffer limit
+   size/nsize used only to set recv buffer limit
+   size = 0 (default) -> use comm_forward from Pair
+   size > 0 -> Pair passes max size per atom
+   the latter is only useful if Pair does several comm modes,
+     some are smaller than max stored in its comm_forward
 ------------------------------------------------------------------------- */
 
-void CommBrick::forward_comm(Pair *pair)
+void CommBrick::forward_comm(Pair *pair, int size)
 {
-  int iswap,n;
+  int iswap,n,nsize;
   double *buf;
   MPI_Request request;
 
-  int nsize = pair->comm_forward;
+  if (size) nsize = size;
+  else nsize = pair->comm_forward;
 
   for (iswap = 0; iswap < nswap; iswap++) {
 
@@ -1017,16 +1026,21 @@ void CommBrick::forward_comm(Pair *pair)
 
 /* ----------------------------------------------------------------------
    reverse communication invoked by a Pair
-   nsize used only to set recv buffer limit
+   size/nsize used only to set recv buffer limit
+   size = 0 (default) -> use comm_reverse from Pair
+   size > 0 -> Pair passes max size per atom
+   the latter is only useful if Pair does several comm modes,
+     some are smaller than max stored in its comm_reverse
 ------------------------------------------------------------------------- */
 
-void CommBrick::reverse_comm(Pair *pair)
+void CommBrick::reverse_comm(Pair *pair, int size)
 {
-  int iswap,n;
+  int iswap,n,nsize;
   double *buf;
   MPI_Request request;
 
-  int nsize = MAX(pair->comm_reverse,pair->comm_reverse_off);
+  if (size) nsize = size;
+  else nsize = MAX(pair->comm_reverse,pair->comm_reverse_off);
 
   for (iswap = nswap-1; iswap >= 0; iswap--) {
 
@@ -1054,16 +1068,21 @@ void CommBrick::reverse_comm(Pair *pair)
 
 /* ----------------------------------------------------------------------
    forward communication invoked by a Bond
-   nsize used only to set recv buffer limit
+   size/nsize used only to set recv buffer limit
+   size = 0 (default) -> use comm_forward from Bond
+   size > 0 -> Bond passes max size per atom
+   the latter is only useful if Bond does several comm modes,
+     some are smaller than max stored in its comm_forward
 ------------------------------------------------------------------------- */
 
-void CommBrick::forward_comm(Bond *bond)
+void CommBrick::forward_comm(Bond *bond, int size)
 {
-  int iswap,n;
+  int iswap,n,nsize;
   double *buf;
   MPI_Request request;
 
-  int nsize = bond->comm_forward;
+  if (size) nsize = size;
+  else nsize = bond->comm_forward;
 
   for (iswap = 0; iswap < nswap; iswap++) {
 
@@ -1091,16 +1110,21 @@ void CommBrick::forward_comm(Bond *bond)
 
 /* ----------------------------------------------------------------------
    reverse communication invoked by a Bond
-   nsize used only to set recv buffer limit
+   size/nsize used only to set recv buffer limit
+   size = 0 (default) -> use comm_reverse from Bond
+   size > 0 -> Bond passes max size per atom
+   the latter is only useful if Bond does several comm modes,
+     some are smaller than max stored in its comm_reverse
 ------------------------------------------------------------------------- */
 
-void CommBrick::reverse_comm(Bond *bond)
+void CommBrick::reverse_comm(Bond *bond, int size)
 {
-  int iswap,n;
+  int iswap,n,nsize;
   double *buf;
   MPI_Request request;
 
-  int nsize = MAX(bond->comm_reverse,bond->comm_reverse_off);
+  if (size) nsize = size;
+  else nsize = MAX(bond->comm_reverse,bond->comm_reverse_off);
 
   for (iswap = nswap-1; iswap >= 0; iswap--) {
 
@@ -1171,10 +1195,10 @@ void CommBrick::forward_comm(Fix *fix, int size)
 /* ----------------------------------------------------------------------
    reverse communication invoked by a Fix
    size/nsize used only to set recv buffer limit
-   size = 0 (default) -> use comm_forward from Fix
+   size = 0 (default) -> use comm_reverse from Fix
    size > 0 -> Fix passes max size per atom
    the latter is only useful if Fix does several comm modes,
-     some are smaller than max stored in its comm_forward
+     some are smaller than max stored in its comm_reverse
 ------------------------------------------------------------------------- */
 
 void CommBrick::reverse_comm(Fix *fix, int size)
@@ -1212,8 +1236,8 @@ void CommBrick::reverse_comm(Fix *fix, int size)
 
 /* ----------------------------------------------------------------------
    reverse communication invoked by a Fix with variable size data
-   query fix for pack size to insure buf_send is big enough
-   handshake sizes before each Irecv/Send to insure buf_recv is big enough
+   query fix for pack size to ensure buf_send is big enough
+   handshake sizes before each Irecv/Send to ensure buf_recv is big enough
 ------------------------------------------------------------------------- */
 
 void CommBrick::reverse_comm_variable(Fix *fix)
@@ -1255,16 +1279,21 @@ void CommBrick::reverse_comm_variable(Fix *fix)
 
 /* ----------------------------------------------------------------------
    forward communication invoked by a Compute
-   nsize used only to set recv buffer limit
+   size/nsize used only to set recv buffer limit
+   size = 0 (default) -> use comm_forward from Compute
+   size > 0 -> Compute passes max size per atom
+   the latter is only useful if Compute does several comm modes,
+     some are smaller than max stored in its comm_forward
 ------------------------------------------------------------------------- */
 
-void CommBrick::forward_comm(Compute *compute)
+void CommBrick::forward_comm(Compute *compute, int size)
 {
-  int iswap,n;
+  int iswap,n,nsize;
   double *buf;
   MPI_Request request;
 
-  int nsize = compute->comm_forward;
+  if (size) nsize = size;
+  else nsize = compute->comm_forward;
 
   for (iswap = 0; iswap < nswap; iswap++) {
 
@@ -1293,16 +1322,21 @@ void CommBrick::forward_comm(Compute *compute)
 
 /* ----------------------------------------------------------------------
    reverse communication invoked by a Compute
-   nsize used only to set recv buffer limit
+   size/nsize used only to set recv buffer limit
+   size = 0 (default) -> use comm_reverse from Compute
+   size > 0 -> Compute passes max size per atom
+   the latter is only useful if Compute does several comm modes,
+     some are smaller than max stored in its comm_reverse
 ------------------------------------------------------------------------- */
 
-void CommBrick::reverse_comm(Compute *compute)
+void CommBrick::reverse_comm(Compute *compute, int size)
 {
-  int iswap,n;
+  int iswap,n,nsize;
   double *buf;
   MPI_Request request;
 
-  int nsize = compute->comm_reverse;
+  if (size) nsize = size;
+  else nsize = compute->comm_reverse;
 
   for (iswap = nswap-1; iswap >= 0; iswap--) {
 
@@ -1330,16 +1364,21 @@ void CommBrick::reverse_comm(Compute *compute)
 
 /* ----------------------------------------------------------------------
    forward communication invoked by a Dump
-   nsize used only to set recv buffer limit
+   size/nsize used only to set recv buffer limit
+   size = 0 (default) -> use comm_forward from Dump
+   size > 0 -> Dump passes max size per atom
+   the latter is only useful if Dump does several comm modes,
+     some are smaller than max stored in its comm_forward
 ------------------------------------------------------------------------- */
 
-void CommBrick::forward_comm(Dump *dump)
+void CommBrick::forward_comm(Dump *dump, int size)
 {
-  int iswap,n;
+  int iswap,n,nsize;
   double *buf;
   MPI_Request request;
 
-  int nsize = dump->comm_forward;
+  if (size) nsize = size;
+  else nsize = dump->comm_forward;
 
   for (iswap = 0; iswap < nswap; iswap++) {
 
@@ -1368,16 +1407,21 @@ void CommBrick::forward_comm(Dump *dump)
 
 /* ----------------------------------------------------------------------
    reverse communication invoked by a Dump
-   nsize used only to set recv buffer limit
+   size/nsize used only to set recv buffer limit
+   size = 0 (default) -> use comm_reverse from Dump
+   size > 0 -> Dump passes max size per atom
+   the latter is only useful if Dump does several comm modes,
+     some are smaller than max stored in its comm_reverse
 ------------------------------------------------------------------------- */
 
-void CommBrick::reverse_comm(Dump *dump)
+void CommBrick::reverse_comm(Dump *dump, int size)
 {
-  int iswap,n;
+  int iswap,n,nsize;
   double *buf;
   MPI_Request request;
 
-  int nsize = dump->comm_reverse;
+  if (size) nsize = size;
+  else nsize = dump->comm_reverse;
 
   for (iswap = nswap-1; iswap >= 0; iswap--) {
 
@@ -1413,7 +1457,7 @@ void CommBrick::forward_comm_array(int nsize, double **array)
   double *buf;
   MPI_Request request;
 
-  // insure send/recv bufs are big enough for nsize
+  // ensure send/recv bufs are big enough for nsize
   // based on smax/rmax from most recent borders() invocation
 
   if (nsize > maxforward) {
@@ -1453,58 +1497,6 @@ void CommBrick::forward_comm_array(int nsize, double **array)
       for (k = 0; k < nsize; k++)
         array[i][k] = buf[m++];
   }
-}
-
-/* ----------------------------------------------------------------------
-   exchange info provided with all 6 stencil neighbors
-------------------------------------------------------------------------- */
-
-int CommBrick::exchange_variable(int n, double *inbuf, double *&outbuf)
-{
-  int nsend,nrecv,nrecv1,nrecv2;
-  MPI_Request request;
-
-  nrecv = n;
-  if (nrecv > maxrecv) grow_recv(nrecv);
-  memcpy(buf_recv,inbuf,nrecv*sizeof(double));
-
-  // loop over dimensions
-
-  for (int dim = 0; dim < 3; dim++) {
-
-    // no exchange if only one proc in a dimension
-
-    if (procgrid[dim] == 1) continue;
-
-    // send/recv info in both directions using same buf_recv
-    // if 2 procs in dimension, single send/recv
-    // if more than 2 procs in dimension, send/recv to both neighbors
-
-    nsend = nrecv;
-    MPI_Sendrecv(&nsend,1,MPI_INT,procneigh[dim][0],0,
-                 &nrecv1,1,MPI_INT,procneigh[dim][1],0,world,MPI_STATUS_IGNORE);
-    nrecv += nrecv1;
-    if (procgrid[dim] > 2) {
-      MPI_Sendrecv(&nsend,1,MPI_INT,procneigh[dim][1],0,
-                   &nrecv2,1,MPI_INT,procneigh[dim][0],0,world,MPI_STATUS_IGNORE);
-      nrecv += nrecv2;
-    } else nrecv2 = 0;
-
-    if (nrecv > maxrecv) grow_recv(nrecv);
-
-    MPI_Irecv(&buf_recv[nsend],nrecv1,MPI_DOUBLE,procneigh[dim][1],0,world,&request);
-    MPI_Send(buf_recv,nsend,MPI_DOUBLE,procneigh[dim][0],0,world);
-    MPI_Wait(&request,MPI_STATUS_IGNORE);
-
-    if (procgrid[dim] > 2) {
-      MPI_Irecv(&buf_recv[nsend+nrecv1],nrecv2,MPI_DOUBLE,procneigh[dim][0],0,world,&request);
-      MPI_Send(buf_recv,nsend,MPI_DOUBLE,procneigh[dim][1],0,world);
-      MPI_Wait(&request,MPI_STATUS_IGNORE);
-    }
-  }
-
-  outbuf = buf_recv;
-  return nrecv;
 }
 
 /* ----------------------------------------------------------------------

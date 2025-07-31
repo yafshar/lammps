@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -16,19 +16,18 @@
    Contributing author: Axel Kohlmeyer (Temple U)
 ------------------------------------------------------------------------- */
 
-#include "omp_compat.h"
 #include "angle_cosine_squared_omp.h"
-#include <cmath>
+
 #include "atom.h"
 #include "comm.h"
 #include "force.h"
 #include "neighbor.h"
 
+#include <cmath>
 
+#include "omp_compat.h"
 #include "suffix.h"
 using namespace LAMMPS_NS;
-
-#define SMALL 0.001
 
 /* ---------------------------------------------------------------------- */
 

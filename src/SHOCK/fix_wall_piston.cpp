@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -13,17 +13,19 @@
 ------------------------------------------------------------------------- */
 
 #include "fix_wall_piston.h"
+
+#include "atom.h"
+#include "comm.h"
+#include "domain.h"
+#include "error.h"
+#include "force.h"
+#include "lattice.h"
+#include "math_const.h"
+#include "random_mars.h"
+#include "update.h"
+
 #include <cmath>
 #include <cstring>
-#include "atom.h"
-#include "domain.h"
-#include "lattice.h"
-#include "update.h"
-#include "error.h"
-#include "random_mars.h"
-#include "force.h"
-#include "comm.h"
-#include "math_const.h"
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
@@ -37,10 +39,8 @@ FixWallPiston::FixWallPiston(LAMMPS *lmp, int narg, char **arg) :
   force_reneighbor = 1;
   next_reneighbor = -1;
 
-  if (narg < 4) error->all(FLERR,"Illegal fix wall/piston command");
+  if (narg < 4) utils::missing_cmd_args(FLERR,"fix wall/piston", error);
 
-  randomt = nullptr;
-  gfactor1 = gfactor2 = nullptr;
   tempflag = 0;
   scaleflag = 1;
   roughflag = 0;
@@ -90,6 +90,9 @@ FixWallPiston::FixWallPiston(LAMMPS *lmp, int narg, char **arg) :
       if (t_period <= 0) error->all(FLERR,"Illegal fix wall/piston command");
       if (t_extent <= 0) error->all(FLERR,"Illegal fix wall/piston command");
       if (tseed <= 0) error->all(FLERR,"Illegal fix wall/piston command");
+      delete randomt;
+      delete[] gfactor1;
+      delete[] gfactor2;
       randomt = new RanMars(lmp,tseed + comm->me);
       gfactor1 = new double[atom->ntypes+1];
       gfactor2 = new double[atom->ntypes+1];

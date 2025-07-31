@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -19,6 +19,7 @@
 #include <map>
 
 namespace LAMMPS_NS {
+class Compute;
 
 class Dump : protected Pointers {
   friend class Output;
@@ -84,12 +85,17 @@ class Dump : protected Pointers {
   int unit_count;           // # of times the unit information was written
   int delay_flag;           // 1 if delay output until delaystep
   int write_header_flag;    // 1 if write header, 0 if not
+  int has_id;               // 1 if output contains Atom-IDs
 
   bigint delaystep;
 
-  int refreshflag;    // 1 if dump_modify refresh specified
-  char *refresh;      // compute ID to invoke refresh() on
-  int irefresh;       // index of compute
+  int refreshflag;      // 1 if dump_modify refresh specified
+  char *idrefresh;      // compute ID to invoke refresh() on
+  Compute *irefresh;    // index of compute
+
+  int skipflag;     // 1 if skip condition defined
+  char *skipvar;    // name of variable to check for skip condition
+  int skipindex;    // index of skip variable
 
   char boundstr[9];    // encoding of boundary flags
 
@@ -101,7 +107,7 @@ class Dump : protected Pointers {
   char *format_int_user;
   char *format_bigint_user;
   char **format_column_user;
-  enum { INT, DOUBLE, STRING, BIGINT };
+  enum { INT, DOUBLE, STRING, STRING2, BIGINT };
   std::map<std::string, int> key2col;
   std::vector<std::string> keyword_user;
 
@@ -153,6 +159,8 @@ class Dump : protected Pointers {
   virtual void pack(tagint *) = 0;
   virtual int convert_string(int, double *) { return 0; }
   virtual void write_data(int, double *) = 0;
+  virtual void write_footer() {}
+
   void pbc_allocate();
   double compute_time();
 

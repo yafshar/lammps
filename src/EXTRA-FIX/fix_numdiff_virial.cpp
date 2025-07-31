@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -41,8 +41,8 @@ using namespace FixConst;
 FixNumDiffVirial::FixNumDiffVirial(LAMMPS *lmp, int narg, char **arg) :
     Fix(lmp, narg, arg), id_pe(nullptr), pe(nullptr), temp_x(nullptr), temp_f(nullptr)
 {
-  if (narg < 5) error->all(FLERR, "Illegal fix numdiff/virial command");
-  if (igroup) error->all(FLERR, "Compute numdiff/virial must use group all");
+  if (narg < 5) utils::missing_cmd_args(FLERR, "numdiff/virial", error);
+  if (igroup) error->all(FLERR, 1, "Compute numdiff/virial must use group all");
 
   peratom_freq = nevery;
   respa_level_support = 1;
@@ -120,7 +120,14 @@ void FixNumDiffVirial::init()
   // check for PE compute
 
   pe = modify->get_compute_by_id(id_pe);
-  if (!pe) error->all(FLERR, "PE compute ID for fix numdiff/virial does not exist");
+  if (!pe) {
+    error->all(FLERR, Error::NOLASTLINE, "Potential energy compute ID {} for fix {} does not exist",
+               id_pe, style);
+  } else {
+    if (pe->peflag == 0)
+      error->all(FLERR, Error::NOLASTLINE,
+                 "Compute ID {} for fix {} does not compute potential energy", id_pe, style);
+  }
 
   if (force->pair && force->pair->compute_flag)
     pair_compute_flag = 1;

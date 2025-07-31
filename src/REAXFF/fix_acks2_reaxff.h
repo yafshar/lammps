@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -57,7 +57,7 @@ class FixACKS2ReaxFF : public FixQEqReaxFF {
   void deallocate_matrix() override;
 
   void init_matvec() override;
-  void compute_X();
+  void compute_X();    // NOLINT
   double calculate_X(double, double);
   void calculate_Q() override;
 

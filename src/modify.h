@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -17,7 +17,6 @@
 #include "pointers.h"
 
 #include <map>
-#include <vector>
 
 namespace LAMMPS_NS {
 
@@ -70,6 +69,7 @@ class Modify : protected Pointers {
   virtual void pre_reverse(int, int);
   virtual void post_force(int);
   virtual void final_integrate();
+  virtual void fused_integrate(int) {}
   virtual void end_of_step();
   virtual double energy_couple();
   virtual double energy_global();
@@ -101,9 +101,11 @@ class Modify : protected Pointers {
   virtual int min_dof();
   virtual int min_reset_ref();
 
+  void reset_grid();
+
   Fix *add_fix(int, char **, int trysuffix = 1);
   Fix *add_fix(const std::string &, int trysuffix = 1);
-  Fix *replace_fix(const char *, int, char **, int trysuffix = 1);
+  Fix *replace_fix(const std::string &, int, char **, int trysuffix = 1);
   Fix *replace_fix(const std::string &, const std::string &, int trysuffix = 1);
   void modify_fix(int, char **);
   void delete_fix(const std::string &);
@@ -116,6 +118,13 @@ class Modify : protected Pointers {
   Fix *get_fix_by_index(int idx) const { return ((idx >= 0) && (idx < nfix)) ? fix[idx] : nullptr; }
   const std::vector<Fix *> get_fix_by_style(const std::string &) const;
   const std::vector<Fix *> &get_fix_list();
+  int get_fix_mask(Fix *ifix) const
+  {
+    for (int i = 0; i < nfix; ++i) {
+      if (fix[i] == ifix) return fmask[i];
+    }
+    return 0;
+  }
 
   Compute *add_compute(int, char **, int trysuffix = 1);
   Compute *add_compute(const std::string &, int trysuffix = 1);
@@ -201,12 +210,12 @@ class Modify : protected Pointers {
   void list_init_compute();
 
  public:
-  typedef Compute *(*ComputeCreator)(LAMMPS *, int, char **);
-  typedef std::map<std::string, ComputeCreator> ComputeCreatorMap;
+  using ComputeCreator = Compute *(*) (LAMMPS *, int, char **);
+  using ComputeCreatorMap = std::map<std::string, ComputeCreator>;
   ComputeCreatorMap *compute_map;
 
-  typedef Fix *(*FixCreator)(LAMMPS *, int, char **);
-  typedef std::map<std::string, FixCreator> FixCreatorMap;
+  using FixCreator = Fix *(*) (LAMMPS *, int, char **);
+  using FixCreatorMap = std::map<std::string, FixCreator>;
   FixCreatorMap *fix_map;
 
  protected:

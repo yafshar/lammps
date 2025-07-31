@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -25,6 +25,7 @@
 #include "comm.h"
 #include "error.h"
 #include "force.h"
+#include "info.h"
 #include "math_extra.h"
 #include "memory.h"
 #include "neigh_list.h"
@@ -38,22 +39,23 @@
 using namespace LAMMPS_NS;
 using namespace MathExtra;
 
-#define MAXLINE 1024
-#define DELTA 4
+static constexpr int DELTA = 4;
 
 static const char cite_pair_edip[] =
+  "pair edip/multi: doi:10.1103/PhysRevB.86.144118, doi:10.1088/0953-8984/22/3/035802\n\n"
   "@article{cjiang2012\n"
   " author    = {Jian, Chao and Morgan, Dane, and Szlufarska, Izabella},\n"
-  " title     = {Carbon tri-interstitial defect: A model for DII center},\n"
-  " journal   = {Physical Review B},\n"
+  " title     = {Carbon Tri-Interstitial Defect: {A} Model for {D$_{\\mathrm{II}}$} Center},\n"
+  " journal   = {Phys.\\ Rev.~B},\n"
   " volume    = {86},\n"
   " pages     = {144118},\n"
   " year      = {2012},\n"
   "}\n\n"
   "@article{lpizzagalli2010,\n"
-  " author    = {G. Lucas, M. Bertolus, and L. Pizzagalli},\n"
-  " journal   = {J. Phys. : Condens. Matter 22},\n"
+  " author    = {G. Lucas and M. Bertolus and L. Pizzagalli},\n"
+  " journal   = {J.~Phys.\\ Condens.\\ Matter},\n"
   " volume    = {22},\n"
+  " number    = 3,\n"
   " pages     = {035802},\n"
   " year      = {2010},\n"
   "}\n\n";
@@ -338,14 +340,9 @@ void PairEDIPMulti::compute(int eflag, int vflag)
   if (vflag_fdotr) virial_fdotr_compute();
 }
 
-double sqr(double x)
-{
-  return x * x;
-}
-
 //pair Vij, partial derivatives dVij(r,Z)/dr and dVij(r,Z)/dZ
 void PairEDIPMulti::edip_pair(double r, double z, const Param &param, double &eng,
-                         double &fdr, double &fZ)
+                              double &fdr, double &fZ)
 {
   double A = param.A;
   double B = param.B;
@@ -447,7 +444,7 @@ void PairEDIPMulti::edip_h(double l, double z, const Param &param, double &f,
 
   edip_tau(z, param, Tau, TaudZ);
 
-  v1 = sqr(l + Tau);
+  v1 = (l + Tau) * (l + Tau);
   u2 = Q * v1;
   v2 = exp(-u2);
 
@@ -569,7 +566,9 @@ void PairEDIPMulti::init_style()
 
 double PairEDIPMulti::init_one(int i, int j)
 {
-  if (setflag[i][j] == 0) error->all(FLERR,"All pair coeffs are not set");
+  if (setflag[i][j] == 0)
+    error->all(FLERR, Error::NOLASTLINE,
+               "All pair coeffs are not set. Status\n" + Info::get_pair_coeff_status(lmp));
 
   return cutmax;
 }
@@ -687,11 +686,13 @@ void PairEDIPMulti::setup()
         for (m = 0; m < nparams; m++) {
           if (i == params[m].ielement && j == params[m].jelement &&
               k == params[m].kelement) {
-            if (n >= 0) error->all(FLERR,"Potential file has duplicate entry");
+            if (n >= 0) error->all(FLERR,"Potential file has a duplicate entry for: {} {} {}",
+                                   elements[i], elements[j], elements[k]);
             n = m;
           }
         }
-        if (n < 0) error->all(FLERR,"Potential file is missing an entry");
+        if (n < 0) error->all(FLERR,"Potential file is missing an entry for: {} {} {}",
+                              elements[i], elements[j], elements[k]);
         elem3param[i][j][k] = n;
       }
 

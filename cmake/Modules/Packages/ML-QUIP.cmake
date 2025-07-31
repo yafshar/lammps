@@ -16,15 +16,18 @@ if(DOWNLOAD_QUIP)
     set(temp "${temp}DEFINES += -DGETARG_F2003 -DFORTRAN_UNDERSCORE\n")
     set(temp "${temp}F95FLAGS += -fpp -free -fPIC\n")
     set(temp "${temp}F77FLAGS += -fpp -fixed -fPIC\n")
+    set(temp "${temp}F95_PRE_FILENAME_FLAG = -Tf\n")
   elseif(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
-    set(temp "${temp}FPP=${CMAKE_Fortran_COMPILER} -E -x f95-cpp-input\nOPTIM=${CMAKE_Fortran_FLAGS_${BTYPE}}\n")
+    # quip library uses GNU fortran extensions. If any more restrictive standards are set, reset them
+    string(REGEX REPLACE -std=f[0-9]+ -std=gnu _fopt "${CMAKE_Fortran_FLAGS_${BTYPE}}")
+    set(temp "${temp}FPP=${CMAKE_Fortran_COMPILER} -E -x f95-cpp-input\nOPTIM=${_fopt} -fmax-stack-var-size=6553600\n")
     set(temp "${temp}DEFINES += -DGETARG_F2003 -DGETENV_F2003 -DGFORTRAN -DFORTRAN_UNDERSCORE\n")
     set(temp "${temp}F95FLAGS += -x f95-cpp-input -ffree-line-length-none -ffree-form -fno-second-underscore -fPIC\n")
     set(temp "${temp}F77FLAGS += -x f77-cpp-input -fno-second-underscore -fPIC\n")
   else()
     message(FATAL_ERROR "The ${CMAKE_Fortran_COMPILER_ID} Fortran compiler is not (yet) supported for building QUIP")
   endif()
-  set(temp "${temp}CFLAGS += -fPIC \nCPLUSPLUSFLAGS += -fPIC\nAR_ADD=src\n")
+  set(temp "${temp}CFLAGS += -fPIC -Wno-return-mismatch \nCPLUSPLUSFLAGS += -fPIC -Wno-return-mismatch\nAR_ADD=src\n")
   set(temp "${temp}MATH_LINKOPTS=")
   foreach(flag ${BLAS_LIBRARIES})
     set(temp "${temp} ${flag}")
@@ -34,7 +37,7 @@ if(DOWNLOAD_QUIP)
   endforeach()
   # Fix cmake crashing when MATH_LINKOPTS not set, required for e.g. recent Cray Programming Environment
   set(temp "${temp} -L/_DUMMY_PATH_\n")
-  set(temp "${temp}PYTHON=python\nPIP=pip\nEXTRA_LINKOPTS=\n")
+  set(temp "${temp}PYTHON=${Python_EXECUTABLE}\nPIP=pip\nEXTRA_LINKOPTS=\n")
   set(temp "${temp}HAVE_CP2K=0\nHAVE_VASP=0\nHAVE_TB=0\nHAVE_PRECON=1\nHAVE_LOTF=0\nHAVE_ONIOM=0\n")
   set(temp "${temp}HAVE_LOCAL_E_MIX=0\nHAVE_QC=0\nHAVE_GAP=1\nHAVE_DESCRIPTORS_NONCOMMERCIAL=1\n")
   set(temp "${temp}HAVE_TURBOGAP=0\nHAVE_QR=1\nHAVE_THIRDPARTY=0\nHAVE_FX=0\nHAVE_SCME=0\nHAVE_MTP=0\n")
@@ -55,15 +58,15 @@ if(DOWNLOAD_QUIP)
     GIT_SUBMODULES "src/fox;src/GAP"
     PATCH_COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_BINARY_DIR}/quip.config <SOURCE_DIR>/arch/Makefile.lammps
     CONFIGURE_COMMAND env QUIP_ARCH=lammps make config
-    BUILD_COMMAND env QUIP_ARCH=lammps make libquip
+    BUILD_COMMAND env QUIP_ARCH=lammps make -j1 libquip
     INSTALL_COMMAND ""
     BUILD_IN_SOURCE YES
-    BUILD_BYPRODUCTS <SOURCE_DIR>/build/lammps/libquip.a
+    BUILD_BYPRODUCTS <SOURCE_DIR>/build/lammps/${CMAKE_STATIC_LIBRARY_PREFIX}quip${CMAKE_STATIC_LIBRARY_SUFFIX}
   )
   ExternalProject_get_property(quip_build SOURCE_DIR)
   add_library(LAMMPS::QUIP UNKNOWN IMPORTED)
   set_target_properties(LAMMPS::QUIP PROPERTIES
-    IMPORTED_LOCATION "${SOURCE_DIR}/build/lammps/libquip.a"
+    IMPORTED_LOCATION "${SOURCE_DIR}/build/lammps/${CMAKE_STATIC_LIBRARY_PREFIX}quip${CMAKE_STATIC_LIBRARY_SUFFIX}"
     INTERFACE_LINK_LIBRARIES "${LAPACK_LIBRARIES}")
   target_link_libraries(lammps PRIVATE LAMMPS::QUIP)
   add_dependencies(LAMMPS::QUIP quip_build)

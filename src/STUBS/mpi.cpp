@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -19,7 +19,6 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #if defined(_WIN32)
@@ -296,6 +295,14 @@ int MPI_Irecv(void *buf, int count, MPI_Datatype datatype, int source, int tag, 
     printf("MPI Stub WARNING: Should not recv message from self\n");
     ++callcount;
   }
+  return 0;
+}
+
+/* ---------------------------------------------------------------------- */
+
+int MPI_Iprobe(int, int, MPI_Comm, int *flag, MPI_Status *)
+{
+  if (flag) *flag = 0;
   return 0;
 }
 

@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -10,6 +10,7 @@
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
+
 /* ----------------------------------------------------------------------
  Contributing authors: Byungkyun Kang (University of Nevada, Las Vegas)
  ------------------------------------------------------------------------- */
@@ -29,12 +30,11 @@
 
 using namespace LAMMPS_NS;
 
-#define MAXLINE 1024
-#define MAXWORD 3
+static constexpr int MAXLINE = 1024;
 
 /* ---------------------------------------------------------------------- */
 
-MLIAPDescriptorSO3::MLIAPDescriptorSO3(LAMMPS *lmp, char *paramfilename) : MLIAPDescriptor(lmp)
+MLIAPDescriptorSO3::MLIAPDescriptorSO3(LAMMPS *lmp, char *paramfilename) : Pointers(lmp), MLIAPDescriptor(lmp)
 {
   radelem = nullptr;
   wjelem = nullptr;
@@ -73,8 +73,10 @@ void MLIAPDescriptorSO3::read_paramfile(char *paramfilename)
   rfac0 = 0.99363;
   rmin0 = 0.0;
 
-  for (int i = 0; i < nelements; i++) delete[] elements[i];
-  delete[] elements;
+  if (elements) {
+    for (int i = 0; i < nelements; i++) delete[] elements[i];
+    delete[] elements;
+  }
   memory->destroy(radelem);
   memory->destroy(wjelem);
   memory->destroy(cutsq);
@@ -89,7 +91,8 @@ void MLIAPDescriptorSO3::read_paramfile(char *paramfilename)
                  utils::getsyserror());
   }
 
-  char line[MAXLINE], *ptr;
+  char line[MAXLINE] = {'\0'};
+  char *ptr;
   int eof = 0;
   int n, nwords;
 
@@ -137,6 +140,7 @@ void MLIAPDescriptorSO3::read_paramfile(char *paramfilename)
         }
 
         elementsflag = 1;
+        allocated_elements = 1;
       } else if (skeywd == "radelems") {
         for (int ielem = 0; ielem < nelements; ielem++) {
           radelem[ielem] = utils::numeric(FLERR, skeyval, false, lmp);
@@ -231,7 +235,7 @@ void MLIAPDescriptorSO3::compute_forces(class MLIAPData *data)
   for (int ii = 0; ii < data->nlistatoms; ii++) {
     const int i = data->iatoms[ii];
 
-    // insure rij, inside, wj, and rcutij are of size jnum
+    // ensure rij, inside, wj, and rcutij are of size jnum
 
     const int jnum = data->numneighs[ii];
 
@@ -275,7 +279,7 @@ void MLIAPDescriptorSO3::compute_force_gradients(class MLIAPData *data)
   for (int ii = 0; ii < data->nlistatoms; ii++) {
     const int i = data->iatoms[ii];
 
-    // insure rij, inside, wj, and rcutij are of size jnum
+    // ensure rij, inside, wj, and rcutij are of size jnum
 
     const int jnum = data->numneighs[ii];
 

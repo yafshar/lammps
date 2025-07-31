@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -26,6 +26,7 @@ namespace LAMMPS_NS {
 
 class FixSpringSelf : public Fix {
  public:
+  enum { NONE, CONSTANT, EQUAL, ATOM };
   FixSpringSelf(class LAMMPS *, int, char **);
   ~FixSpringSelf() override;
   int setmask() override;
@@ -47,11 +48,14 @@ class FixSpringSelf : public Fix {
   int size_restart(int) override;
   int maxsize_restart() override;
 
- private:
+ protected:
   double k, espring;
   double **xoriginal;    // original coords of atoms
+  char *kstr;            // name of variable for K
+  double *kval;          // per-atom variable values for K
+  int kvar, kstyle;
   int xflag, yflag, zflag;
-  int ilevel_respa;
+  int ilevel_respa, maxatom;
 };
 
 }    // namespace LAMMPS_NS

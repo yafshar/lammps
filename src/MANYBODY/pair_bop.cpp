@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -40,9 +40,9 @@
 
 #include "atom.h"
 #include "comm.h"
-#include "domain.h"
 #include "error.h"
 #include "force.h"
+#include "info.h"
 #include "math_special.h"
 #include "memory.h"
 #include "neigh_list.h"
@@ -438,7 +438,9 @@ void PairBOP::init_style()
 
 double PairBOP::init_one(int i, int j)
 {
-  if (setflag[i][j] == 0) error->all(FLERR,"All pair coeffs are not set");
+  if (setflag[i][j] == 0)
+    error->all(FLERR, Error::NOLASTLINE,
+               "All pair coeffs are not set. Status\n" + Info::get_pair_coeff_status(lmp));
 
   int itype = map[i];
   int jtype = map[j];
@@ -894,7 +896,7 @@ double PairBOP::SigmaBo(int itmp, int jtmp)
     // k' is loop over neighbors all neighbors of j with k a neighbor
     // of i and j a neighbor of i and determine which k' is k
 
-    if (sigma_f[param_ij] == 0.5 || !sigma_k[param_ij] || !pass_jk) continue;
+    if ((sigma_f[param_ij] == 0.5) || (sigma_k[param_ij] == 0.0) || !pass_jk) continue;
     PairList1 & pl_jk = pairlist1[temp_jk];
     dis_jk[0] = pl_jk.dis[0];
     dis_jk[1] = pl_jk.dis[1];
@@ -1874,8 +1876,7 @@ void PairBOP::read_table(char *filename)
       reader = new PotentialFileReader(lmp, filename, "BOP");
       bop_types = reader->next_int();
       if (bop_types <= 0)
-        error->one(FLERR,fmt::format("BOP potential file with {} "
-                                     "elements",bop_types));
+        error->one(FLERR,"BOP potential file with {} elements",bop_types);
 
       bop_elements = new char*[bop_types];
       bop_masses = new double[bop_types];
@@ -2223,8 +2224,7 @@ void PairBOP::write_tables(int npts)
       int param = elem2param[i][j];
       PairParameters & pair = pairParameters[param];
 
-      filename = fmt::format("{}{}_Pair_SPR_{}",bop_elements[i],
-                             bop_elements[j],comm->me);
+      filename = fmt::format("{}{}_Pair_SPR_{}",bop_elements[i],bop_elements[j],comm->me);
 
       fp = fopen(filename.c_str(), "w");
       xmin = (pair.betaS)->get_xmin();
@@ -2242,8 +2242,7 @@ void PairBOP::write_tables(int npts)
       fclose(fp);
 
       if (pair.cutL != 0) {
-        filename = fmt::format("{}{}_Pair_L_{}",bop_elements[i],
-                               bop_elements[j],comm->me);
+        filename = fmt::format("{}{}_Pair_L_{}",bop_elements[i],bop_elements[j],comm->me);
         fp = fopen(filename.c_str(), "w");
         xmin = (pair.cphi)->get_xmin();
         xmax = (pair.cphi)->get_xmax();
@@ -2256,8 +2255,7 @@ void PairBOP::write_tables(int npts)
         }
         fclose(fp);
       }
-      filename = fmt::format("{}{}_Pair_BO_{}", bop_elements[i],
-                             bop_elements[j], comm->me);
+      filename = fmt::format("{}{}_Pair_BO_{}", bop_elements[i],bop_elements[j], comm->me);
       fp = fopen(filename.c_str(), "w");
       xmin = (pair.bo)->get_xmin();
       xmax = (pair.bo)->get_xmax();

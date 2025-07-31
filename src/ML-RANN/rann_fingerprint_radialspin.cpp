@@ -2,7 +2,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -182,7 +182,7 @@ void Fingerprint_radialspin::compute_fingerprint(double * features,double * dfea
   int nelements = pair->nelements;
   int res = pair->res;
   int i,j,jj,itype,jtype,l;
-  int *ilist,**firstneigh;
+  int *ilist;
   double delx,dely,delz,rsq;
   //
   PairRANN::Simulation *sim = &pair->sims[sid];
@@ -195,7 +195,7 @@ void Fingerprint_radialspin::compute_fingerprint(double * features,double * dfea
   int f = pair->net[itype].dimensions[0];
   double cutinv2 = 1/cutmax/cutmax;
   double *si = sim->s[i];
-  firstneigh = sim->firstneigh;
+
   //loop over neighbors
   for (jj = 0; jj < jnum; jj++) {
     j = jl[jj];

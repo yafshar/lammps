@@ -1,7 +1,7 @@
 /* -*- c++ -*- ---------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -15,12 +15,6 @@
 #define LMP_FIX_QEQ_H
 
 #include "fix.h"
-
-#define EV_TO_KCAL_PER_MOL 14.4
-#define DANGER_ZONE 0.90
-#define MIN_CAP 50
-#define SAFE_ZONE 1.2
-#define MIN_NBRS 100
 
 namespace LAMMPS_NS {
 
@@ -36,6 +30,7 @@ class FixQEq : public Fix {
   void min_pre_force(int) override;
 
   double compute_scalar() override;
+  static constexpr double DANGER_ZONE = 0.90;
 
   // derived child classes must provide these functions
 
@@ -70,10 +65,10 @@ class FixQEq : public Fix {
   int maxwarn;                 // print warning when max iterations was reached
   double cutoff, cutoff_sq;    // neighbor cutoff
 
-  double *chi, *eta, *gamma, *zeta, *zcore;    // qeq parameters
+  double *chi, *eta, *gamma, *zeta, *zcore, *qmin, *qmax, *omega;
   double *chizj;
   double **shld;
-  int streitz_flag, reax_flag;
+  int streitz_flag, reax_flag, ctip_flag;
 
   bigint ngroup;
 
@@ -83,6 +78,7 @@ class FixQEq : public Fix {
   double **s_hist, **t_hist;
   int nprev;
 
+  // NOLINTBEGIN
   typedef struct {
     int n, m;
     int *firstnbr;
@@ -90,15 +86,12 @@ class FixQEq : public Fix {
     int *jlist;
     double *val;
   } sparse_matrix;
+  // NOLINTEND
 
   sparse_matrix H;
   double *Hdia_inv;
   double *b_s, *b_t;
   double *p, *q, *r, *d;
-
-  // streitz-mintmire
-
-  double alpha;
 
   // damped dynamics
 

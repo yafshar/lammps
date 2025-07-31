@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -44,9 +44,8 @@ class FixWallGranRegion : public FixWallGran {
   int size_restart(int) override;
   int maxsize_restart() override;
 
- private:
   class Region *region;
-  int nregion;
+  void update_contacts(int, int);
 
   // shear history for multiple contacts per particle
 
@@ -57,10 +56,11 @@ class FixWallGranRegion : public FixWallGran {
   int *c2r;                  // contact to region mapping
                              // c2r[i] = index of Ith contact in
                              //   region-contact[] list of contacts
+ private:
+
+  int nregion;
   int motion_resetflag;      // used by restart to indicate that region
                              //    vel info is to be reset
-
-  void update_contacts(int, int);
 };
 
 }    // namespace LAMMPS_NS

@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS Development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -15,7 +15,6 @@
 #include "atom.h"
 #include "force.h"
 #include "info.h"
-#include "input.h"
 #include "output.h"
 #include "pair.h"
 #include "thermo.h"
@@ -24,7 +23,6 @@
 
 #include <cmath>
 #include <cstring>
-#include <vector>
 
 // whether to print verbose output (i.e. not capturing LAMMPS screen output).
 bool verbose = false;

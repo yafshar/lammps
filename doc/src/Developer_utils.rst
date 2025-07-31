@@ -133,6 +133,12 @@ and parsing files or arguments.
 .. doxygenfunction:: trim_comment
    :project: progguide
 
+.. doxygenfunction:: strcompress
+   :project: progguide
+
+.. doxygenfunction:: strip_style_suffix
+   :project: progguide
+
 .. doxygenfunction:: star_subst
    :project: progguide
 
@@ -154,10 +160,16 @@ and parsing files or arguments.
 .. doxygenfunction:: trim_and_count_words
    :project: progguide
 
+.. doxygenfunction:: join_words
+   :project: progguide
+
 .. doxygenfunction:: split_words
    :project: progguide
 
 .. doxygenfunction:: split_lines
+   :project: progguide
+
+.. doxygenfunction:: strsame
    :project: progguide
 
 .. doxygenfunction:: strmatch
@@ -170,6 +182,12 @@ and parsing files or arguments.
    :project: progguide
 
 .. doxygenfunction:: is_double
+   :project: progguide
+
+.. doxygenfunction:: is_id
+   :project: progguide
+
+.. doxygenfunction:: is_type
    :project: progguide
 
 Potential file functions
@@ -199,22 +217,40 @@ Argument processing
 .. doxygenfunction:: bounds
    :project: progguide
 
+.. doxygenfunction:: bounds_typelabel
+   :project: progguide
+
 .. doxygenfunction:: expand_args
+   :project: progguide
+
+.. doxygenfunction:: parse_grid_id
+   :project: progguide
+
+.. doxygenfunction:: expand_type
    :project: progguide
 
 Convenience functions
 ^^^^^^^^^^^^^^^^^^^^^
 
-.. doxygenfunction:: logmesg(LAMMPS *lmp, const S &format, Args&&... args)
+.. doxygenfunction:: logmesg(LAMMPS *lmp, const std::string &format, Args&&... args)
    :project: progguide
 
 .. doxygenfunction:: logmesg(LAMMPS *lmp, const std::string &mesg)
+   :project: progguide
+
+.. doxygenfunction:: print(FILE *fp, const std::string &format, Args&&... args)
+   :project: progguide
+
+.. doxygenfunction:: print(FILE *fp, const std::string &mesg)
    :project: progguide
 
 .. doxygenfunction:: errorurl
    :project: progguide
 
 .. doxygenfunction:: missing_cmd_args
+   :project: progguide
+
+.. doxygenfunction:: point_to_error
    :project: progguide
 
 .. doxygenfunction:: flush_buffers(LAMMPS *lmp)
@@ -305,7 +341,7 @@ are all "whitespace" characters, i.e. the space character, the tabulator
 character, the carriage return character, the linefeed character, and
 the form feed character.
 
-.. code-block:: C++
+.. code-block:: c++
    :caption: Tokenizer class example listing entries of the PATH environment variable
 
    #include "tokenizer.h"
@@ -337,7 +373,7 @@ tokenizer into a ``try`` / ``catch`` block to handle errors.  The
 when a (type of) number is requested as next token that is not
 compatible with the string representing the next word.
 
-.. code-block:: C++
+.. code-block:: c++
    :caption: ValueTokenizer class example with exception handling
 
    #include "tokenizer.h"
@@ -415,7 +451,7 @@ one or two array indices "[<number>]" with numbers > 0.
 
 A typical code segment would look like this:
 
-.. code-block:: C++
+.. code-block:: c++
    :caption: Usage example for ArgInfo class
 
    int nvalues = 0;
@@ -464,7 +500,7 @@ open the file, and will call the :cpp:class:`LAMMPS_NS::Error` class in
 case of failures to read or to convert numbers, so that LAMMPS will be
 aborted.
 
-.. code-block:: C++
+.. code-block:: c++
    :caption: Use of PotentialFileReader class in pair style coul/streitz
 
     PotentialFileReader reader(lmp, file, "coul/streitz");
@@ -543,7 +579,7 @@ chunk size needs to be known in advance, 2) with :cpp:func:`MyPage::vget()
 its size is registered later with :cpp:func:`MyPage::vgot()
 <LAMMPS_NS::MyPage::vgot>`.
 
-.. code-block:: C++
+.. code-block:: c++
    :caption: Example of using :cpp:class:`MyPage <LAMMPS_NS::MyPage>`
 
       #include "my_page.h"
@@ -601,7 +637,7 @@ classes:
    of a dense, symmetric, real matrix.
 
 #. The "PEigenDense" class only calculates the principal eigenvalue
-   (ie. the largest or smallest eigenvalue), and its corresponding
+   (i.e. the largest or smallest eigenvalue), and its corresponding
    eigenvector.  However it is much more efficient than "Jacobi" when
    applied to large matrices (larger than 13x13).  PEigenDense also can
    understand complex-valued Hermitian matrices.
@@ -617,19 +653,21 @@ Tohoku University (under MIT license)
 
 ----------
 
-.. doxygenfunction:: MathEigen::jacobi3(double const *const *mat, double *eval, double **evec)
+.. doxygenfunction:: MathEigen::jacobi3(double const *const *mat, double *eval, double **evec, int sort)
    :project: progguide
 
-.. doxygenfunction:: MathEigen::jacobi3(double const mat[3][3], double *eval, double evec[3][3])
+.. doxygenfunction:: MathEigen::jacobi3(double const mat[3][3], double *eval, double evec[3][3], int sort)
    :project: progguide
 
 ---------------------------
+
+.. _communication_buffer_coding_with_ubuf:
 
 Communication buffer coding with *ubuf*
 ---------------------------------------
 
 LAMMPS uses communication buffers where it collects data from various
-class instances and then exchanges the data with neighboring sub-domains.
+class instances and then exchanges the data with neighboring subdomains.
 For simplicity those buffers are defined as ``double`` buffers and
 used for doubles and integer numbers. This presents a unique problem
 when 64-bit integers are used.  While the storage needed for a ``double``

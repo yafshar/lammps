@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -44,14 +44,22 @@ class BondHybrid : public Bond {
   double single(int, double, int, int, double &) override;
   double memory_usage() override;
 
- private:
+  int check_itype(int, char *);
+
+ protected:
   int *map;           // which style each bond type points to
   int has_quartic;    // which style, if any is a quartic bond style
   int *nbondlist;     // # of bonds in sub-style bondlists
   int *maxbond;       // max # of bonds sub-style lists can store
   int ***bondlist;    // bondlist for each sub-style
+  int **orig_map;     // location of substyle bond in original bondlist
 
-  void allocate();
+  virtual void allocate();
+  virtual void deallocate();
+  void flags();
+
+  virtual void init_svector();
+  virtual void copy_svector(int);
 };
 
 }    // namespace LAMMPS_NS

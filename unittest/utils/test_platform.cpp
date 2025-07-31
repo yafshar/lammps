@@ -6,6 +6,7 @@
 #include "gtest/gtest.h"
 
 #include <cstdio>
+#include <string>
 
 using namespace LAMMPS_NS;
 using testing::EndsWith;
@@ -325,10 +326,10 @@ TEST(Platform, path_and_directory)
     ASSERT_FALSE(platform::path_is_directory("path_is_directory"));
 
 #if defined(_WIN32)
-    ASSERT_EQ(platform::mkdir("path_is_directory\\path_is_directory"),0);
+    ASSERT_EQ(platform::mkdir("path_is_directory\\path_is_directory"), 0);
     ASSERT_TRUE(platform::path_is_directory("path_is_directory\\path_is_directory"));
 #else
-    ASSERT_EQ(platform::mkdir("path_is_directory/path_is_directory"),0);
+    ASSERT_EQ(platform::mkdir("path_is_directory/path_is_directory"), 0);
     ASSERT_TRUE(platform::path_is_directory("path_is_directory/path_is_directory"));
 #endif
     platform::rmdir("path_is_directory");

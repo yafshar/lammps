@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -110,9 +110,9 @@ static double Phi(double const *x1,    //array holding x,y,z coords atom 1
   }
 
   //Consider periodic boundary conditions:
-  domain->minimum_image(vb12[0], vb12[1], vb12[2]);
-  domain->minimum_image(vb23[0], vb23[1], vb23[2]);
-  domain->minimum_image(vb34[0], vb34[1], vb34[2]);
+  domain->minimum_image(FLERR, vb12[0], vb12[1], vb12[2]);
+  domain->minimum_image(FLERR, vb23[0], vb23[1], vb23[2]);
+  domain->minimum_image(FLERR, vb34[0], vb34[1], vb34[2]);
 
   //--- Compute the normal to the planes formed by atoms 1,2,3 and 2,3,4 ---
 
@@ -133,7 +133,7 @@ static double Phi(double const *x1,    //array holding x,y,z coords atom 1
 
   if (dot3(n123, vb34) > 0.0) {
     phi = -phi;       //(Note: Negative dihedral angles are possible only in 3-D.)
-    phi += MY_2PI;    //<- This insure phi is always in the range 0 to 2*PI
+    phi += MY_2PI;    //<- This ensure phi is always in the range 0 to 2*PI
   }
   return phi;
 }    // DihedralSpherical::Phi()
@@ -639,7 +639,7 @@ void DihedralSpherical::allocate()
 
 void DihedralSpherical::coeff(int narg, char **arg)
 {
-  if (narg < 4) error->all(FLERR, "Incorrect args for dihedral coefficients");
+  if (narg < 4) error->all(FLERR, "Incorrect args for dihedral coefficients" + utils::errorurl(21));
   if (!allocated) allocate();
 
   int ilo, ihi;
@@ -692,7 +692,7 @@ void DihedralSpherical::coeff(int narg, char **arg)
     count++;
   }
 
-  if (count == 0) error->all(FLERR, "Incorrect args for dihedral coefficients");
+  if (count == 0) error->all(FLERR, "Incorrect args for dihedral coefficients" + utils::errorurl(21));
 }
 
 /* ----------------------------------------------------------------------

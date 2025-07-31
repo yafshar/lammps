@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,8 +21,8 @@ DumpStyle(xtc,DumpXTC);
 #define LMP_DUMP_XTC_H
 
 #include "dump.h"
-#include "xdr_compat.h"
 
+struct XDR;
 namespace LAMMPS_NS {
 
 class DumpXTC : public Dump {
@@ -37,7 +37,7 @@ class DumpXTC : public Dump {
   float precision;    // user-adjustable precision setting
   float *coords;
   double sfactor, tfactor;    // scaling factors for positions and time unit
-  XDR xd;
+  XDR *xd;
 
   void init_style() override;
   int modify_param(int, char **) override;

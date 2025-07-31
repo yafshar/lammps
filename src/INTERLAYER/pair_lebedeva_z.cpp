@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -29,6 +29,7 @@
 #include "comm.h"
 #include "error.h"
 #include "force.h"
+#include "info.h"
 #include "memory.h"
 #include "neighbor.h"
 #include "neigh_list.h"
@@ -39,8 +40,7 @@
 
 using namespace LAMMPS_NS;
 
-#define MAXLINE 1024
-#define DELTA 4
+static constexpr int DELTA = 4;
 
 /* ---------------------------------------------------------------------- */
 
@@ -233,7 +233,7 @@ void PairLebedevaZ::coeff(int narg, char **arg)
     }
   }
 
-  if (count == 0) error->all(FLERR,"Incorrect args for pair coefficients");
+  if (count == 0) error->all(FLERR,"Incorrect args for pair coefficients" + utils::errorurl(21));
 }
 
 /* ----------------------------------------------------------------------
@@ -254,9 +254,11 @@ void PairLebedevaZ::init_style()
 
 double PairLebedevaZ::init_one(int i, int j)
 {
-  if (setflag[i][j] == 0) error->all(FLERR,"All pair coeffs are not set");
+  if (setflag[i][j] == 0)
+    error->all(FLERR, Error::NOLASTLINE,
+               "All pair coeffs are not set. Status\n" + Info::get_pair_coeff_status(lmp));
   if (!offset_flag)
-    error->all(FLERR,"Must use 'pair_modify shift yes' with this pair style");
+    error->all(FLERR, Error::NOLASTLINE, "Must use 'pair_modify shift yes' with this pair style");
 
   if (offset_flag && (cut_global > 0.0)) {
     int iparam_ij = elem2param[map[i]][map[j]];
@@ -356,7 +358,7 @@ void PairLebedevaZ::read_file(char *filename)
       params[nparams].z06 = pow(params[nparams].z0,6);
 
       nparams++;
-      if (nparams >= pow(atom->ntypes,3)) break;
+      if (nparams >= pow((double)atom->ntypes,3)) break;
     }
   }
 
@@ -376,11 +378,13 @@ void PairLebedevaZ::read_file(char *filename)
       int n = -1;
       for (int m = 0; m < nparams; m++) {
         if (i == params[m].ielement && j == params[m].jelement) {
-          if (n >= 0) error->all(FLERR,"Potential file has duplicate entry");
+          if (n >= 0) error->all(FLERR,"Potential file has a duplicate entry for: {} {}",
+                                 elements[i], elements[j]);
           n = m;
         }
       }
-      if (n < 0) error->all(FLERR,"Potential file is missing an entry");
+      if (n < 0) error->all(FLERR,"Potential file is missing an entry for: {} {}",
+                            elements[i], elements[j]);
       elem2param[i][j] = n;
     }
   }

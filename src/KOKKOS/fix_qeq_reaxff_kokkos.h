@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -52,6 +52,8 @@ struct TagQEqSum2{};
 struct TagQEqCalculateQ{};
 struct TagQEqPackForwardComm{};
 struct TagQEqUnpackForwardComm{};
+struct TagQEqPackExchange{};
+struct TagQEqUnpackExchange{};
 
 template<class DeviceType>
 class FixQEqReaxFFKokkos : public FixQEqReaxFF, public KokkosBase {
@@ -68,7 +70,7 @@ class FixQEqReaxFFKokkos : public FixQEqReaxFF, public KokkosBase {
   void pre_force(int) override;
 
   KOKKOS_INLINE_FUNCTION
-  void num_neigh_item(int, int&) const;
+  void num_neigh_item(int, bigint&) const;
 
   KOKKOS_INLINE_FUNCTION
   void operator()(TagQEqZero, const int&) const;
@@ -78,7 +80,7 @@ class FixQEqReaxFFKokkos : public FixQEqReaxFF, public KokkosBase {
 
   template<int NEIGHFLAG>
   KOKKOS_INLINE_FUNCTION
-  void compute_h_item(int, int &, const bool &) const;
+  void compute_h_item(int, bigint &, const bool &) const;
 
   template<int NEIGHFLAG>
   KOKKOS_INLINE_FUNCTION
@@ -128,6 +130,22 @@ class FixQEqReaxFFKokkos : public FixQEqReaxFF, public KokkosBase {
   KOKKOS_INLINE_FUNCTION
   void operator()(TagQEqUnpackForwardComm, const int&) const;
 
+  KOKKOS_INLINE_FUNCTION
+  void operator()(TagQEqPackExchange, const int&) const;
+
+  KOKKOS_INLINE_FUNCTION
+  void operator()(TagQEqUnpackExchange, const int&) const;
+
+  int pack_exchange_kokkos(const int &nsend,DAT::tdual_xfloat_2d &buf,
+                           DAT::tdual_int_1d k_sendlist,
+                           DAT::tdual_int_1d k_copylist,
+                           ExecutionSpace space) override;
+
+  void unpack_exchange_kokkos(DAT::tdual_xfloat_2d &k_buf,
+                              DAT::tdual_int_1d &indices,int nrecv,
+                              int nrecv1,int nextrarecv1,
+                              ExecutionSpace space) override;
+
   struct params_qeq{
     KOKKOS_INLINE_FUNCTION
     params_qeq() {chi=0;eta=0;gamma=0;};
@@ -136,7 +154,7 @@ class FixQEqReaxFFKokkos : public FixQEqReaxFF, public KokkosBase {
     F_FLOAT chi, eta, gamma;
   };
 
-  int pack_forward_comm_kokkos(int, DAT::tdual_int_2d, int, DAT::tdual_xfloat_1d&,
+  int pack_forward_comm_kokkos(int, DAT::tdual_int_1d, DAT::tdual_xfloat_1d&,
                        int, int *) override;
   void unpack_forward_comm_kokkos(int, int, DAT::tdual_xfloat_1d&) override;
   int pack_forward_comm(int, int *, double *, int, int *) override;
@@ -183,8 +201,9 @@ class FixQEqReaxFFKokkos : public FixQEqReaxFF, public KokkosBase {
   int allocated_flag, last_allocate;
   int need_dup;
   int converged;
+  bigint m_cap_big;
 
-  typename AT::t_int_scalar d_mfill_offset;
+  typename AT::t_bigint_scalar d_mfill_offset;
 
   typedef Kokkos::DualView<int***,DeviceType> tdual_int_1d;
   Kokkos::DualView<params_qeq*,Kokkos::LayoutRight,DeviceType> k_params;
@@ -209,7 +228,7 @@ class FixQEqReaxFFKokkos : public FixQEqReaxFF, public KokkosBase {
   DAT::tdual_ffloat_1d k_tap;
   typename AT::t_ffloat_1d d_tap;
 
-  typename AT::t_int_1d d_firstnbr;
+  typename AT::t_bigint_1d d_firstnbr;
   typename AT::t_int_1d d_numnbrs;
   typename AT::t_int_1d d_jlist;
   typename AT::t_ffloat_1d d_val;
@@ -237,10 +256,13 @@ class FixQEqReaxFFKokkos : public FixQEqReaxFF, public KokkosBase {
   DupScatterView<F_FLOAT**, typename AT::t_ffloat2_1d::array_layout> dup_o;
   NonDupScatterView<F_FLOAT**, typename AT::t_ffloat2_1d::array_layout> ndup_o;
 
-  int iswap;
+  int nsend;
   int first;
-  typename AT::t_int_2d d_sendlist;
-  typename AT::t_xfloat_1d_um d_buf;
+  typename AT::t_int_1d d_sendlist;
+  typename AT::t_xfloat_1d d_buf;
+  typename AT::t_int_1d d_copylist;
+  typename AT::t_int_1d d_indices;
+  typename AT::t_int_1d d_exchange_sendlist;
 
   void init_shielding_k();
   void init_hist();
@@ -251,7 +273,7 @@ class FixQEqReaxFFKokkos : public FixQEqReaxFF, public KokkosBase {
   void calculate_q();
 
   int neighflag, pack_flag;
-  int nlocal,nall,nmax,newton_pair;
+  int nlocal,nlocal_last_allocate,nall,nmax,newton_pair;
   int count, isuccess;
   F_FLOAT alpha[2];
   F_FLOAT beta[2];
@@ -260,29 +282,30 @@ class FixQEqReaxFFKokkos : public FixQEqReaxFF, public KokkosBase {
 
   void grow_arrays(int) override;
   void copy_arrays(int, int, int) override;
+  void sort_kokkos(Kokkos::BinSort<KeyViewType, BinOp> &Sorter) override;
   int pack_exchange(int, double *) override;
   int unpack_exchange(int, double *) override;
   void get_chi_field() override;
 };
 
 template <class DeviceType>
-struct FixQEqReaxFFKokkosNumNeighFunctor  {
-  typedef DeviceType  device_type;
-  typedef int value_type;
+struct FixQEqReaxFFKokkosNumNeighFunctor {
+  typedef DeviceType device_type;
+  typedef bigint value_type;
   FixQEqReaxFFKokkos<DeviceType> c;
   FixQEqReaxFFKokkosNumNeighFunctor(FixQEqReaxFFKokkos<DeviceType>* c_ptr):c(*c_ptr) {
     c.cleanup_copy();
   };
   KOKKOS_INLINE_FUNCTION
-  void operator()(const int ii, int &maxneigh) const {
-    c.num_neigh_item(ii, maxneigh);
+  void operator()(const int ii, bigint &totneigh) const {
+    c.num_neigh_item(ii, totneigh);
   }
 };
 
 template <class DeviceType, int NEIGHFLAG>
 struct FixQEqReaxFFKokkosComputeHFunctor {
   int atoms_per_team, vector_length;
-  typedef int value_type;
+  typedef bigint value_type;
   typedef Kokkos::ScratchMemorySpace<DeviceType> scratch_space;
   FixQEqReaxFFKokkos<DeviceType> c;
 
@@ -297,7 +320,7 @@ struct FixQEqReaxFFKokkosComputeHFunctor {
   };
 
   KOKKOS_INLINE_FUNCTION
-  void operator()(const int ii, int &m_fill, const bool &final) const {
+  void operator()(const int ii, bigint &m_fill, const bool &final) const {
     c.template compute_h_item<NEIGHFLAG>(ii,m_fill,final);
   }
 

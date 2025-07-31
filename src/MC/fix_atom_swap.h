@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -37,6 +37,7 @@ class FixAtomSwap : public Fix {
   double memory_usage() override;
   void write_restart(FILE *) override;
   void restart(char *) override;
+  void *extract(const char *, int &) override;
 
  private:
   int nevery, seed;
@@ -52,6 +53,8 @@ class FixAtomSwap : public Fix {
   class Region *region;                // swap region
   char *idregion;                      // swap region id
 
+  int mc_active;    // 1 during MC trials, otherwise 0
+
   int nswaptypes, nmutypes;
   int *type_list;
   double *mu;
@@ -63,7 +66,7 @@ class FixAtomSwap : public Fix {
 
   int atom_swap_nmax;
   double beta;
-  double *qtype;
+  double *qtype, *mtype;
   double energy_stored;
   double **sqrt_mass_ratio;
   int *local_swap_iatom_list;

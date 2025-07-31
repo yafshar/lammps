@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -45,16 +45,16 @@
 using namespace LAMMPS_NS;
 using namespace FixConst;
 
-#define MAXLINE 512
+static constexpr int MAXLINE = 512;
 
-enum{FORWARD=-1,BACKWARD=1};
+enum{ FORWARD=-1, BACKWARD=1 };
 
 static const char cite_fix_phonon[] =
-  "fix phonon command:\n\n"
+  "fix phonon command: doi:10.1016/j.cpc.2011.04.019\n\n"
   "@Article{Kong11,\n"
   " author = {L. T. Kong},\n"
-  " title = {Phonon dispersion measured directly from molecular dynamics simulations},\n"
-  " journal = {Comp.~Phys.~Comm.},\n"
+  " title = {Phonon Dispersion Measured Directly from Molecular Dynamics Simulations},\n"
+  " journal = {Comput.\\ Phys.\\ Commun.},\n"
   " year =    2011,\n"
   " volume =  182,\n"
   " pages =   {2201--2207}\n"
@@ -88,15 +88,15 @@ FixPhonon::FixPhonon(LAMMPS *lmp,  int narg, char **arg) : Fix(lmp, narg, arg)
   int iarg = 8;
   nasr = 20;
 
-  // other command line options
+  // other command-line options
   while (iarg < narg) {
     if (strcmp(arg[iarg],"sysdim") == 0) {
-      if (++iarg >= narg) error->all(FLERR,"Illegal fix phonon command: incomplete command line options.");
+      if (++iarg >= narg) error->all(FLERR,"Illegal fix phonon command: incomplete command-line options.");
       sdim = utils::inumeric(FLERR, arg[iarg],false,lmp);
       if (sdim < 1) error->all(FLERR,"Illegal fix phonon command: sysdim should not be less than 1.");
 
     } else if (strcmp(arg[iarg],"nasr") == 0) {
-      if (++iarg >= narg) error->all(FLERR,"Illegal fix phonon command: incomplete command line options.");
+      if (++iarg >= narg) error->all(FLERR,"Illegal fix phonon command: incomplete command-line options.");
       nasr = utils::inumeric(FLERR, arg[iarg],false,lmp);
 
     } else {
@@ -126,6 +126,8 @@ FixPhonon::FixPhonon(LAMMPS *lmp,  int narg, char **arg) : Fix(lmp, narg, arg)
   surf2tag.clear();
 
   // get the mapping between lattice indices and atom IDs
+
+  atom->map_init();
   readmap();
   delete[] mapfile;
   if (nucell == 1) nasr = MIN(1,nasr);
@@ -184,21 +186,21 @@ FixPhonon::FixPhonon(LAMMPS *lmp,  int narg, char **arg) : Fix(lmp, narg, arg)
     flog = fopen(logfile, "w");
     if (flog == nullptr)
       error->one(FLERR,"Can not open output file {}: {}", logfile,utils::getsyserror());
-    fmt::print(flog,"############################################################\n");
-    fmt::print(flog,"# group name of the atoms under study      : {}\n", group->names[igroup]);
-    fmt::print(flog,"# total number of atoms in the group       : {}\n", ngroup);
-    fmt::print(flog,"# dimension of the system                  : {} D\n", sysdim);
-    fmt::print(flog,"# number of atoms per unit cell            : {}\n", nucell);
-    fmt::print(flog,"# dimension of the FFT mesh                : {} x {} x {}\n", nx, ny, nz);
-    fmt::print(flog,"# number of wait steps before measurement  : {}\n", waitsteps);
-    fmt::print(flog,"# frequency of the measurement             : {}\n", nevery);
-    fmt::print(flog,"# output result after this many measurement: {}\n", nfreq);
-    fmt::print(flog,"# number of processors used by this run    : {}\n", nprocs);
-    fmt::print(flog,"############################################################\n");
-    fmt::print(flog,"# mapping information between lattice indices and atom id\n");
-    fmt::print(flog,"# nx ny nz nucell\n");
-    fmt::print(flog,"{} {} {} {}\n", nx, ny, nz, nucell);
-    fmt::print(flog,"# l1 l2 l3 k atom_id\n");
+    utils::print(flog,"############################################################\n");
+    utils::print(flog,"# group name of the atoms under study      : {}\n", group->names[igroup]);
+    utils::print(flog,"# total number of atoms in the group       : {}\n", ngroup);
+    utils::print(flog,"# dimension of the system                  : {} D\n", sysdim);
+    utils::print(flog,"# number of atoms per unit cell            : {}\n", nucell);
+    utils::print(flog,"# dimension of the FFT mesh                : {} x {} x {}\n", nx, ny, nz);
+    utils::print(flog,"# number of wait steps before measurement  : {}\n", waitsteps);
+    utils::print(flog,"# frequency of the measurement             : {}\n", nevery);
+    utils::print(flog,"# output result after this many measurement: {}\n", nfreq);
+    utils::print(flog,"# number of processors used by this run    : {}\n", nprocs);
+    utils::print(flog,"############################################################\n");
+    utils::print(flog,"# mapping information between lattice indices and atom id\n");
+    utils::print(flog,"# nx ny nz nucell\n");
+    utils::print(flog,"{} {} {} {}\n", nx, ny, nz, nucell);
+    utils::print(flog,"# l1 l2 l3 k atom_id\n");
     int ix, iy, iz, iu;
     for (idx = 0; idx < ngroup; ++idx) {
       itag = surf2tag[idx];
@@ -206,20 +208,19 @@ FixPhonon::FixPhonon(LAMMPS *lmp,  int narg, char **arg) : Fix(lmp, narg, arg)
       iz   = (idx/nucell)%nz;
       iy   = (idx/(nucell*nz))%ny;
       ix   = (idx/(nucell*nz*ny))%nx;
-      fmt::print(flog,"{} {} {} {} {}\n", ix, iy, iz, iu, itag);
+      utils::print(flog,"{} {} {} {} {}\n", ix, iy, iz, iu, itag);
     }
-    fmt::print(flog,"############################################################\n");
+    utils::print(flog,"############################################################\n");
     fflush(flog);
   }
   surf2tag.clear();
 
   // default temperature is from thermo
   TempSum = new double[sysdim];
-  id_temp = new char[12];
-  strcpy(id_temp,"thermo_temp");
+  id_temp = utils::strdup("thermo_temp");
   int icompute = modify->find_compute(id_temp);
   temperature = modify->compute[icompute];
-  inv_nTemp = 1./group->count(temperature->igroup);
+  inv_nTemp = 1.0/group->count(temperature->igroup);
 
 } // end of constructor
 
@@ -399,7 +400,7 @@ void FixPhonon::end_of_step()
       ndim = sysdim;
       for (i = 1; i < nucell; ++i) {
         for (idim = 0; idim < sysdim; ++idim) dist2orig[idim] = Rnow[idx][ndim++] - Rnow[idx][idim];
-        domain->minimum_image(dist2orig);
+        domain->minimum_image_big(FLERR, dist2orig);
         for (idim = 0; idim < sysdim; ++idim) basis[i][idim] += dist2orig[idim];
       }
     }
@@ -554,7 +555,7 @@ void FixPhonon::readmap()
   }
 
   // read from map file for others
-  char line[MAXLINE];
+  char line[MAXLINE] = {'\0'};
   FILE *fp = fopen(mapfile, "r");
   if (fp == nullptr)
     error->all(FLERR,"Cannot open input map file {}: {}", mapfile, utils::getsyserror());
@@ -671,7 +672,7 @@ void FixPhonon::postprocess( )
 
   // to get Phi = KT.G^-1; normalization of FFTW data is done here
   double boltz = force->boltz, TempAve = 0.;
-  auto kbtsqrt = new double[sysdim];
+  auto *kbtsqrt = new double[sysdim];
   double TempFac = inv_neval * inv_nTemp;
   double NormFac = TempFac * double(ntotal);
 
@@ -695,7 +696,7 @@ void FixPhonon::postprocess( )
   MPI_Gatherv(Phi_q[0],mynq*fft_dim2*2,MPI_DOUBLE,Phi_all[0],recvcnts,displs,MPI_DOUBLE,0,world);
 
   // to collect all basis info and averaged it on root
-  auto basis_root = new double[fft_dim];
+  auto *basis_root = new double[fft_dim];
   if (fft_dim > sysdim) MPI_Reduce(&basis[1][0], &basis_root[sysdim], fft_dim-sysdim, MPI_DOUBLE, MPI_SUM, 0, world);
 
   if (me == 0) { // output dynamic matrix by root
@@ -736,16 +737,16 @@ void FixPhonon::postprocess( )
     fclose(fp_bin);
 
     // write log file, here however, it is the dynamical matrix that is written
-    fmt::print(flog,"############################################################\n");
-    fmt::print(flog,"# Current time step                      : {}\n", update->ntimestep);
-    fmt::print(flog,"# Total number of measurements           : {}\n", neval);
-    fmt::print(flog,"# Average temperature of the measurement : {}\n", TempAve);
-    fmt::print(flog,"# Boltzmann constant under current units : {}\n", boltz);
-    fmt::print(flog,"# basis vector A1 = [{} {} {}]\n", basevec[0], basevec[1], basevec[2]);
-    fmt::print(flog,"# basis vector A2 = [{} {} {}]\n", basevec[3], basevec[4], basevec[5]);
-    fmt::print(flog,"# basis vector A3 = [{} {} {}]\n", basevec[6], basevec[7], basevec[8]);
-    fmt::print(flog,"############################################################\n");
-    fmt::print(flog,"# qx\t qy \t qz \t\t Phi(q)\n");
+    utils::print(flog,"############################################################\n");
+    utils::print(flog,"# Current time step                      : {}\n", update->ntimestep);
+    utils::print(flog,"# Total number of measurements           : {}\n", neval);
+    utils::print(flog,"# Average temperature of the measurement : {}\n", TempAve);
+    utils::print(flog,"# Boltzmann constant under current units : {}\n", boltz);
+    utils::print(flog,"# basis vector A1 = [{} {} {}]\n", basevec[0], basevec[1], basevec[2]);
+    utils::print(flog,"# basis vector A2 = [{} {} {}]\n", basevec[3], basevec[4], basevec[5]);
+    utils::print(flog,"# basis vector A3 = [{} {} {}]\n", basevec[6], basevec[7], basevec[8]);
+    utils::print(flog,"############################################################\n");
+    utils::print(flog,"# qx\t qy \t qz \t\t Phi(q)\n");
 
     EnforceASR();
 
@@ -764,10 +765,10 @@ void FixPhonon::postprocess( )
         double qy = double(iy)/double(ny);
         for (int iz = 0; iz < nz; ++iz) {
           double qz = double(iz)/double(nz);
-          fmt::print(flog,"{} {} {}", qx, qy, qz);
+          utils::print(flog,"{} {} {}", qx, qy, qz);
           for (idim = 0; idim < fft_dim2; ++idim)
-            fmt::print(flog, " {} {}", std::real(Phi_all[idq][idim]), std::imag(Phi_all[idq][idim]));
-          fmt::print(flog, "\n");
+            utils::print(flog, " {} {}", std::real(Phi_all[idq][idim]), std::imag(Phi_all[idq][idim]));
+          utils::print(flog, "\n");
           ++idq;
         }
       }

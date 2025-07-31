@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -16,7 +16,7 @@
 #include "atom.h"
 #include "domain.h"
 #include "error.h"
-#include "fix_store.h"
+#include "fix_store_atom.h"
 #include "group.h"
 #include "modify.h"
 #include "update.h"
@@ -29,7 +29,7 @@ using namespace LAMMPS_NS;
 
 ComputeMSD::ComputeMSD(LAMMPS *lmp, int narg, char **arg) : Compute(lmp, narg, arg), id_fix(nullptr)
 {
-  if (narg < 3) error->all(FLERR, "Illegal compute msd command");
+  if (narg < 3) utils::missing_cmd_args(FLERR, "compute msd", error);
 
   vector_flag = 1;
   size_vector = 4;
@@ -45,26 +45,26 @@ ComputeMSD::ComputeMSD(LAMMPS *lmp, int narg, char **arg) : Compute(lmp, narg, a
   int iarg = 3;
   while (iarg < narg) {
     if (strcmp(arg[iarg], "com") == 0) {
-      if (iarg + 2 > narg) error->all(FLERR, "Illegal compute msd command");
+      if (iarg + 2 > narg) utils::missing_cmd_args(FLERR, "compute msd com", error);
       comflag = utils::logical(FLERR, arg[iarg + 1], false, lmp);
       iarg += 2;
     } else if (strcmp(arg[iarg], "average") == 0) {
-      if (iarg + 2 > narg) error->all(FLERR, "Illegal compute msd command");
+      if (iarg + 2 > narg) utils::missing_cmd_args(FLERR, "compute msd average", error);
       avflag = utils::logical(FLERR, arg[iarg + 1], false, lmp);
       iarg += 2;
     } else
-      error->all(FLERR, "Illegal compute msd command");
+      error->all(FLERR, iarg, "Unknown compute msd keyword: {}", arg[iarg]);
   }
 
   if (group->dynamic[igroup])
-    error->all(FLERR, "Compute {} is not compatible with dynamic groups", style);
+    error->all(FLERR, 1, "Compute {} is not compatible with dynamic groups", style);
 
   // create a new fix STORE style for reference positions
   // id = compute-ID + COMPUTE_STORE, fix group = compute group
 
   id_fix = utils::strdup(id + std::string("_COMPUTE_STORE"));
-  fix = dynamic_cast<FixStore *>(
-      modify->add_fix(fmt::format("{} {} STORE peratom 1 3", id_fix, group->names[igroup])));
+  fix = dynamic_cast<FixStoreAtom *>(
+      modify->add_fix(fmt::format("{} {} STORE/ATOM 3 0 0 1", id_fix, group->names[igroup])));
 
   // calculate xu,yu,zu for fix store array
   // skip if reset from restart file
@@ -127,8 +127,9 @@ void ComputeMSD::init()
 {
   // set fix which stores reference atom coords
 
-  fix = dynamic_cast<FixStore *>(modify->get_fix_by_id(id_fix));
-  if (!fix) error->all(FLERR, "Could not find compute msd fix with ID {}", id_fix);
+  fix = dynamic_cast<FixStoreAtom *>(modify->get_fix_by_id(id_fix));
+  if (!fix)
+    error->all(FLERR, Error::NOLASTLINE, "Could not find compute msd fix with ID {}", id_fix);
 
   // nmsd = # of atoms in group
 
@@ -140,6 +141,12 @@ void ComputeMSD::init()
 
 void ComputeMSD::compute_vector()
 {
+  // check that nmsd is unchanged
+
+  int newnmsd = group->count(igroup);
+  if (newnmsd != nmsd)
+    error->all(FLERR, Error::NOLASTLINE, "Number of atoms in compute msd group must not change.");
+
   invoked_vector = update->ntimestep;
 
   // cm = current center of mass

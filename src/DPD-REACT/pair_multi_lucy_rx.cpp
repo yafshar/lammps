@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -30,6 +30,7 @@
 #include "error.h"
 #include "fix.h"
 #include "force.h"
+#include "info.h"
 #include "math_const.h"
 #include "memory.h"
 #include "modify.h"
@@ -41,25 +42,19 @@
 using namespace LAMMPS_NS;
 using MathConst::MY_PI;
 
-enum{NONE,RLINEAR,RSQ};
+enum{ NONE, RLINEAR, RSQ };
 
-#define MAXLINE 1024
-
-#ifdef DBL_EPSILON
-  #define MY_EPSILON (10.0*DBL_EPSILON)
-#else
-  #define MY_EPSILON (10.0*2.220446049250313e-16)
-#endif
+static constexpr int MAXLINE = 1024;
 
 #define oneFluidParameter (-1)
 #define isOneFluid(_site) ( (_site) == oneFluidParameter )
 
 static const char cite_pair_multi_lucy_rx[] =
-  "pair_style multi/lucy/rx command:\n\n"
+  "pair_style multi/lucy/rx command: doi:10.1063/1.4942520\n\n"
   "@Article{Moore16,\n"
-  " author = {J.D. Moore, B.C. Barnes, S. Izvekov, M. Lisal, M.S. Sellers, D.E. Taylor and J. K. Brennan},\n"
-  " title = {A coarse-grain force field for RDX:  Density dependent and energy conserving},\n"
-  " journal = {J. Chem. Phys.},\n"
+  " author = {J. D. Moore and B. C. Barnes and S. Izvekov and M. Lisal and M. S. Sellers and D. E. Taylor and J. K. Brennan},\n"
+  " title = {A Coarse-Grain Force Field for {RDX}:  {D}ensity Dependent and Energy Conserving},\n"
+  " journal = {J.~Chem.\\ Phys.},\n"
   " year =    2016,\n"
   " volume =  144\n"
   " pages =   {104501}\n"
@@ -397,7 +392,7 @@ void PairMultiLucyRX::coeff(int narg, char **arg)
   else tb->cut = tb->rfile[tb->ninput-1];
 
   // error check on table parameters
-  // insure cutoff is within table
+  // ensure cutoff is within table
 
   if (tb->ninput <= 1) error->one(FLERR,"Invalid pair table length");
   if (tb->rflag == 0) {
@@ -467,7 +462,9 @@ void PairMultiLucyRX::coeff(int narg, char **arg)
 
 double PairMultiLucyRX::init_one(int i, int j)
 {
-  if (setflag[i][j] == 0) error->all(FLERR,"All pair coeffs are not set");
+  if (setflag[i][j] == 0)
+    error->all(FLERR, Error::NOLASTLINE,
+               "All pair coeffs are not set. Status:\n" + Info::get_pair_coeff_status(lmp));
 
   tabindex[j][i] = tabindex[i][j];
 
@@ -483,16 +480,13 @@ double PairMultiLucyRX::init_one(int i, int j)
 
 void PairMultiLucyRX::read_table(Table *tb, char *file, char *keyword)
 {
-  char line[MAXLINE];
+  char line[MAXLINE] = {'\0'};
 
   // open file
 
   FILE *fp = utils::open_potential(file,lmp,nullptr);
-  if (fp == nullptr) {
-    char str[128];
-    snprintf(str,128,"Cannot open file %s",file);
-    error->one(FLERR,str);
-  }
+  if (fp == nullptr)
+    error->one(FLERR, "Cannot open file {}: {}",file,utils::getsyserror());
 
   // loop until section found with matching keyword
 
@@ -621,20 +615,20 @@ void PairMultiLucyRX::param_extract(Table *tb, char *line)
   while (word) {
     if (strcmp(word,"N") == 0) {
       word = strtok(nullptr," \t\n\r\f");
-      tb->ninput = atoi(word);
+      tb->ninput = std::stoi(word);
     } else if (strcmp(word,"R") == 0 || strcmp(word,"RSQ") == 0) {
       if (strcmp(word,"R") == 0) tb->rflag = RLINEAR;
       else if (strcmp(word,"RSQ") == 0) tb->rflag = RSQ;
       word = strtok(nullptr," \t\n\r\f");
-      tb->rlo = atof(word);
+      tb->rlo = std::stod(word);
       word = strtok(nullptr," \t\n\r\f");
-      tb->rhi = atof(word);
+      tb->rhi = std::stod(word);
     } else if (strcmp(word,"FP") == 0) {
       tb->fpflag = 1;
       word = strtok(nullptr," \t\n\r\f");
-      tb->fplo = atof(word);
+      tb->fplo = std::stod(word);
       word = strtok(nullptr," \t\n\r\f");
-      tb->fphi = atof(word);
+      tb->fphi = std::stod(word);
     } else {
       printf("WORD: %s\n",word);
       error->one(FLERR,"Invalid keyword in pair table parameters");
@@ -763,7 +757,7 @@ void PairMultiLucyRX::spline(double *x, double *y, int n,
 {
   int i,k;
   double p,qn,sig,un;
-  auto u = new double[n];
+  auto *u = new double[n];
 
   if (yp1 > 0.99e30) y2[0] = u[0] = 0.0;
   else {

@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -199,7 +199,7 @@ void PairZBL::coeff(int narg, char **arg)
 {
   double z_one, z_two;
 
-  if (narg != 4) error->all(FLERR, "Incorrect args for pair coefficients");
+  if (narg != 4) error->all(FLERR, "Incorrect args for pair coefficients" + utils::errorurl(21));
   if (!allocated) allocate();
 
   int ilo, ihi;
@@ -218,7 +218,7 @@ void PairZBL::coeff(int narg, char **arg)
   for (int i = ilo; i <= ihi; i++) {
     for (int j = MAX(jlo, i); j <= jhi; j++) {
       if (i == j) {
-        if (z_one != z_two) error->all(FLERR, "Incorrect args for pair coefficients");
+        if (z_one != z_two) error->all(FLERR, "Incorrect args for pair coefficients" + utils::errorurl(21));
         z[i] = z_one;
       }
       setflag[i][j] = 1;
@@ -227,7 +227,7 @@ void PairZBL::coeff(int narg, char **arg)
     }
   }
 
-  if (count == 0) error->all(FLERR, "Incorrect args for pair coefficients");
+  if (count == 0) error->all(FLERR, "Incorrect args for pair coefficients" + utils::errorurl(21));
 }
 
 /* ----------------------------------------------------------------------

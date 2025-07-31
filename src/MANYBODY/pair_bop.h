@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -57,18 +57,18 @@ class PairBOP : public Pair {
   struct PairList1 {
     double r, dis[3];
     double betaS, dBetaS, betaP, dBetaP, rep, dRep;
-    PairList1(){};
+    PairList1() = default;
   };
 
   struct PairList2 {
     double r, dis[3];
     double rep, dRep;
-    PairList2(){};
+    PairList2() = default;
   };
 
   struct TripleList {
     double G, dG, cosAng, dCosAngi[3], dCosAngj[3], dCosAngk[3];
-    TripleList(){};
+    TripleList() = default;
   };
 
   struct B_SG {

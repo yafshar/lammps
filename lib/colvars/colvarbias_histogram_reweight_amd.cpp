@@ -9,44 +9,11 @@
 
 #include "colvarbias_histogram_reweight_amd.h"
 #include "colvarproxy.h"
+#include "colvars_memstream.h"
 
-colvarbias_reweightaMD::colvarbias_reweightaMD(char const *key)
-  : colvarbias_histogram(key), grid_count(NULL), grid_dV(NULL),
-    grid_dV_square(NULL), pmf_grid_exp_avg(NULL), pmf_grid_cumulant(NULL),
-    grad_grid_exp_avg(NULL), grad_grid_cumulant(NULL)
-{
-}
+colvarbias_reweightaMD::colvarbias_reweightaMD(char const *key) : colvarbias_histogram(key) {}
 
-colvarbias_reweightaMD::~colvarbias_reweightaMD() {
-  if (grid_dV) {
-    delete grid_dV;
-    grid_dV = NULL;
-  }
-  if (grid_dV_square) {
-    delete grid_dV_square;
-    grid_dV_square = NULL;
-  }
-  if (grid_count) {
-    delete grid_count;
-    grid_count = NULL;
-  }
-  if (pmf_grid_exp_avg) {
-    delete pmf_grid_exp_avg;
-    pmf_grid_exp_avg = NULL;
-  }
-  if (pmf_grid_cumulant) {
-    delete pmf_grid_cumulant;
-    pmf_grid_cumulant = NULL;
-  }
-  if (grad_grid_exp_avg) {
-    delete grad_grid_exp_avg;
-    grad_grid_exp_avg = NULL;
-  }
-  if (grad_grid_cumulant) {
-    delete grad_grid_cumulant;
-    grad_grid_cumulant = NULL;
-  }
-}
+colvarbias_reweightaMD::~colvarbias_reweightaMD() {}
 
 int colvarbias_reweightaMD::init(std::string const &conf) {
   if (cvm::proxy->accelMD_enabled() == false) {
@@ -59,21 +26,21 @@ int colvarbias_reweightaMD::init(std::string const &conf) {
   get_keyval(conf, "WritePMFGradients", b_write_gradients, true);
   get_keyval(conf, "historyFreq", history_freq, 0);
   b_history_files = (history_freq > 0);
-  grid_count = new colvar_grid_scalar(colvars);
+  grid_count.reset(new colvar_grid_scalar(colvars, nullptr, false, grid_conf));
   grid_count->request_actual_value();
   grid->request_actual_value();
-  pmf_grid_exp_avg = new colvar_grid_scalar(colvars);
+  pmf_grid_exp_avg.reset(new colvar_grid_scalar(colvars, grid_count));
   if (b_write_gradients) {
-    grad_grid_exp_avg = new colvar_grid_gradient(colvars);
+    grad_grid_exp_avg.reset(new colvar_grid_gradient(colvars, nullptr, grid_count));
   }
   if (b_use_cumulant_expansion) {
-    grid_dV = new colvar_grid_scalar(colvars);
-    grid_dV_square = new colvar_grid_scalar(colvars);
-    pmf_grid_cumulant = new colvar_grid_scalar(colvars);
+    grid_dV.reset(new colvar_grid_scalar(colvars, grid_count));
+    grid_dV_square.reset(new colvar_grid_scalar(colvars, grid_count));
+    pmf_grid_cumulant.reset(new colvar_grid_scalar(colvars, grid_count));
     grid_dV->request_actual_value();
     grid_dV_square->request_actual_value();
     if (b_write_gradients) {
-      grad_grid_cumulant = new colvar_grid_gradient(colvars);
+      grad_grid_cumulant.reset(new colvar_grid_gradient(colvars, nullptr, grid_count));
     }
   }
   previous_bin.assign(num_variables(), -1);
@@ -81,6 +48,7 @@ int colvarbias_reweightaMD::init(std::string const &conf) {
 }
 
 int colvarbias_reweightaMD::update() {
+  colvarproxy *proxy = cvm::main()->proxy;
   int error_code = COLVARS_OK;
   if (cvm::step_relative() >= start_after_steps) {
     // update base class
@@ -110,7 +78,7 @@ int colvarbias_reweightaMD::update() {
         grid->acc_value(previous_bin, reweighting_factor);
         if (b_use_cumulant_expansion) {
           const cvm::real dV = cvm::logn(reweighting_factor) *
-                               cvm::temperature() * cvm::boltzmann();
+            proxy->target_temperature() * proxy->boltzmann();
           grid_dV->acc_value(previous_bin, dV);
           grid_dV_square->acc_value(previous_bin, dV * dV);
         }
@@ -129,7 +97,7 @@ int colvarbias_reweightaMD::update() {
           grid->acc_value(previous_bin, reweighting_factor);
           if (b_use_cumulant_expansion) {
             const cvm::real dV = cvm::logn(reweighting_factor) *
-                                 cvm::temperature() * cvm::boltzmann();
+              proxy->target_temperature() * proxy->boltzmann();
             grid_dV->acc_value(previous_bin, dV);
             grid_dV_square->acc_value(previous_bin, dV * dV);
           }
@@ -137,10 +105,6 @@ int colvarbias_reweightaMD::update() {
       }
     }
     previous_bin.assign(num_variables(), 0);
-
-    if (output_freq && (cvm::step_absolute() % output_freq) == 0) {
-      write_output_files();
-    }
 
     error_code |= cvm::get_error();
   }
@@ -160,7 +124,7 @@ int colvarbias_reweightaMD::write_output_files() {
                              (cvm::step_absolute() % history_freq) == 0;
   if (write_history) {
     error_code |= write_exponential_reweighted_pmf(
-      out_name_pmf + ".hist", (cvm::step_relative() > 0));
+      out_name_pmf + ".hist", true);
     error_code |= write_count(out_count_prefix + ".hist",
                               (cvm::step_relative() > 0));
   }
@@ -170,7 +134,7 @@ int colvarbias_reweightaMD::write_output_files() {
     error_code |= write_cumulant_expansion_pmf(out_name_cumulant_pmf);
     if (write_history) {
       error_code |= write_cumulant_expansion_pmf(
-        out_name_cumulant_pmf + ".hist", (cvm::step_relative() > 0));
+        out_name_cumulant_pmf + ".hist", true);
     }
   }
   error_code |= cvm::get_error();
@@ -178,17 +142,13 @@ int colvarbias_reweightaMD::write_output_files() {
 }
 
 int colvarbias_reweightaMD::write_exponential_reweighted_pmf(
-  const std::string& p_output_prefix, bool append) {
+  const std::string& p_output_prefix, bool keep_open) {
   const std::string output_pmf = p_output_prefix + ".pmf";
+
   cvm::log("Writing the accelerated MD PMF file \"" + output_pmf + "\".\n");
-  if (!append) {
-    cvm::backup_file(output_pmf.c_str());
-  }
-  const std::ios::openmode mode = (append ? std::ios::app : std::ios::out);
-  std::ostream *pmf_grid_os = cvm::proxy->output_stream(output_pmf, mode);
+  std::ostream &pmf_grid_os = cvm::proxy->output_stream(output_pmf, "PMF file");
   if (!pmf_grid_os) {
-    return cvm::error("Error opening PMF file " + output_pmf +
-                      " for writing.\n", COLVARS_FILE_ERROR);
+    return COLVARS_FILE_ERROR;
   }
   pmf_grid_exp_avg->copy_grid(*grid);
   // compute the average
@@ -199,20 +159,19 @@ int colvarbias_reweightaMD::write_exponential_reweighted_pmf(
       pmf_grid_exp_avg->set_value(i, tmp / count);
     }
   }
-  hist_to_pmf(pmf_grid_exp_avg, grid_count);
-  pmf_grid_exp_avg->write_multicol(*pmf_grid_os);
-  cvm::proxy->close_output_stream(output_pmf);
+  hist_to_pmf(pmf_grid_exp_avg.get(), grid_count.get());
+  pmf_grid_exp_avg->write_multicol(pmf_grid_os);
+  if (!keep_open) {
+    cvm::proxy->close_output_stream(output_pmf);
+  }
+
   if (b_write_gradients) {
     const std::string output_grad = p_output_prefix + ".grad";
     cvm::log("Writing the accelerated MD gradients file \"" + output_grad +
              "\".\n");
-    if (!append) {
-      cvm::backup_file(output_grad.c_str());
-    }
-    std::ostream *grad_grid_os = cvm::proxy->output_stream(output_grad, mode);
+    std::ostream &grad_grid_os = cvm::proxy->output_stream(output_grad, "gradient file");
     if (!grad_grid_os) {
-      return cvm::error("Error opening grad file " + output_grad +
-                        " for writing.\n", COLVARS_FILE_ERROR);
+      return COLVARS_FILE_ERROR;
     }
     for (std::vector<int> ix = grad_grid_exp_avg->new_index();
           grad_grid_exp_avg->index_ok(ix); grad_grid_exp_avg->incr(ix)) {
@@ -221,38 +180,37 @@ int colvarbias_reweightaMD::write_exponential_reweighted_pmf(
           ix, pmf_grid_exp_avg->gradient_finite_diff(ix, n), n);
       }
     }
-    grad_grid_exp_avg->write_multicol(*grad_grid_os);
-    cvm::proxy->close_output_stream(output_grad);
+    grad_grid_exp_avg->write_multicol(grad_grid_os);
+    if (!keep_open) {
+      cvm::proxy->close_output_stream(output_grad);
+    }
   }
+
   return COLVARS_OK;
 }
 
 int colvarbias_reweightaMD::write_cumulant_expansion_pmf(
-  const std::string& p_output_prefix, bool append) {
+  const std::string& p_output_prefix, bool keep_open) {
   const std::string output_pmf = p_output_prefix + ".pmf";
   cvm::log("Writing the accelerated MD PMF file using cumulant expansion: \"" + output_pmf + "\".\n");
-  if (!append) cvm::backup_file(output_pmf.c_str());
-  const std::ios::openmode mode = (append ? std::ios::app : std::ios::out);
-  std::ostream *pmf_grid_cumulant_os = cvm::proxy->output_stream(output_pmf, mode);
+  std::ostream &pmf_grid_cumulant_os = cvm::proxy->output_stream(output_pmf, "PMF file");
   if (!pmf_grid_cumulant_os) {
-    return cvm::error("Error opening PMF file " + output_pmf +
-                      " for writing.\n", COLVARS_FILE_ERROR);
+    return COLVARS_FILE_ERROR;
   }
-  compute_cumulant_expansion_factor(grid_dV, grid_dV_square,
-                                    grid_count, pmf_grid_cumulant);
-  hist_to_pmf(pmf_grid_cumulant, grid_count);
-  pmf_grid_cumulant->write_multicol(*pmf_grid_cumulant_os);
-  cvm::proxy->close_output_stream(output_pmf);
+  compute_cumulant_expansion_factor(grid_dV.get(), grid_dV_square.get(),
+                                    grid_count.get(), pmf_grid_cumulant.get());
+  hist_to_pmf(pmf_grid_cumulant.get(), grid_count.get());
+  pmf_grid_cumulant->write_multicol(pmf_grid_cumulant_os);
+  if (!keep_open) {
+    cvm::proxy->close_output_stream(output_pmf);
+  }
+
   if (b_write_gradients) {
     const std::string output_grad = p_output_prefix + ".grad";
     cvm::log("Writing the accelerated MD gradients file \"" + output_grad + "\".\n");
-    if (!append) {
-      cvm::backup_file(output_grad.c_str());
-    }
-    std::ostream *grad_grid_os = cvm::proxy->output_stream(output_grad, mode);
+    std::ostream &grad_grid_os = cvm::proxy->output_stream(output_grad, "grad file");
     if (!grad_grid_os) {
-      return cvm::error("Error opening grad file " + output_grad +
-                        " for writing.\n", COLVARS_FILE_ERROR);
+      return COLVARS_FILE_ERROR;
     }
     for (std::vector<int> ix = grad_grid_cumulant->new_index();
           grad_grid_cumulant->index_ok(ix); grad_grid_cumulant->incr(ix)) {
@@ -261,31 +219,33 @@ int colvarbias_reweightaMD::write_cumulant_expansion_pmf(
           ix, pmf_grid_cumulant->gradient_finite_diff(ix, n), n);
       }
     }
-    grad_grid_cumulant->write_multicol(*grad_grid_os);
+    grad_grid_cumulant->write_multicol(grad_grid_os);
     cvm::proxy->close_output_stream(output_grad);
   }
   return COLVARS_OK;
 }
 
-int colvarbias_reweightaMD::write_count(const std::string& p_output_prefix, bool append) {
+int colvarbias_reweightaMD::write_count(const std::string& p_output_prefix, bool keep_open) {
   const std::string output_name = p_output_prefix + ".count";
   cvm::log("Writing the accelerated MD count file \""+output_name+"\".\n");
-  if (!append) cvm::backup_file(output_name.c_str());
-  const std::ios::openmode mode = (append ? std::ios::app : std::ios::out);
-  std::ostream *grid_count_os = cvm::proxy->output_stream(output_name, mode);
+  std::ostream &grid_count_os = cvm::proxy->output_stream(output_name, "count file");
   if (!grid_count_os) {
-    return cvm::error("Error opening count file "+output_name+
-                      " for writing.\n", COLVARS_FILE_ERROR);
+    return COLVARS_FILE_ERROR;
   }
-  grid_count->write_multicol(*grid_count_os);
-  cvm::proxy->close_output_stream(output_name);
+  grid_count->write_multicol(grid_count_os);
+  if (!keep_open) {
+    cvm::proxy->close_output_stream(output_name);
+  }
   return COLVARS_OK;
 }
 
 void colvarbias_reweightaMD::hist_to_pmf(
-  colvar_grid_scalar* hist, const colvar_grid_scalar* hist_count) const {
+  colvar_grid_scalar* hist,
+  const colvar_grid_scalar* hist_count) const
+{
+  colvarproxy *proxy = cvm::main()->proxy;
   if (hist->raw_data_num() == 0) return;
-  const cvm::real kbt = cvm::boltzmann() * cvm::temperature();
+  const cvm::real kbt = proxy->boltzmann() * proxy->target_temperature();
   bool first_min_element = true;
   bool first_max_element = true;
   cvm::real min_element = 0;
@@ -329,12 +289,15 @@ void colvarbias_reweightaMD::hist_to_pmf(
   }
 }
 
+
 void colvarbias_reweightaMD::compute_cumulant_expansion_factor(
   const colvar_grid_scalar* hist_dV,
   const colvar_grid_scalar* hist_dV_square,
   const colvar_grid_scalar* hist_count,
-  colvar_grid_scalar* cumulant_expansion_factor) const {
-  const cvm::real beta = 1.0 / (cvm::boltzmann() * cvm::temperature());
+  colvar_grid_scalar* cumulant_expansion_factor) const
+{
+  colvarproxy *proxy = cvm::main()->proxy;
+  const cvm::real beta = 1.0 / (proxy->boltzmann() * proxy->target_temperature());
   size_t i = 0;
   for (i = 0; i < hist_dV->raw_data_num(); ++i) {
     const cvm::real count = hist_count->value(i);
@@ -347,23 +310,37 @@ void colvarbias_reweightaMD::compute_cumulant_expansion_factor(
   }
 }
 
-std::ostream & colvarbias_reweightaMD::write_state_data(std::ostream& os)
+
+template <typename OST> OST & colvarbias_reweightaMD::write_state_data_template_(OST& os)
 {
   std::ios::fmtflags flags(os.flags());
   os.setf(std::ios::fmtflags(0), std::ios::floatfield);
-  os << "grid\n";
+  write_state_data_key(os, "grid");
   grid->write_raw(os, 8);
-  os << "grid_count\n";
+  write_state_data_key(os, "grid_count");
   grid_count->write_raw(os, 8);
-  os << "grid_dV\n";
+  write_state_data_key(os, "grid_dV");
   grid_dV->write_raw(os, 8);
-  os << "grid_dV_square\n";
+  write_state_data_key(os, "grid_dV_square");
   grid_dV_square->write_raw(os, 8);
   os.flags(flags);
   return os;
 }
 
-std::istream & colvarbias_reweightaMD::read_state_data(std::istream& is)
+
+std::ostream & colvarbias_reweightaMD::write_state_data(std::ostream& os)
+{
+  return write_state_data_template_<std::ostream>(os);
+}
+
+
+cvm::memory_stream & colvarbias_reweightaMD::write_state_data(cvm::memory_stream& os)
+{
+  return write_state_data_template_<cvm::memory_stream>(os);
+}
+
+
+template <typename IST> IST & colvarbias_reweightaMD::read_state_data_template_(IST& is)
 {
   if (! read_state_data_key(is, "grid")) {
     return is;
@@ -390,4 +367,16 @@ std::istream & colvarbias_reweightaMD::read_state_data(std::istream& is)
     return is;
   }
   return is;
+}
+
+
+std::istream & colvarbias_reweightaMD::read_state_data(std::istream& is)
+{
+  return read_state_data_template_<std::istream>(is);
+}
+
+
+cvm::memory_stream & colvarbias_reweightaMD::read_state_data(cvm::memory_stream& is)
+{
+  return read_state_data_template_<cvm::memory_stream>(is);
 }

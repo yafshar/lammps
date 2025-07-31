@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -29,6 +29,7 @@
 #include "update.h"
 
 #include <cmath>
+#include <cstring>
 
 using namespace LAMMPS_NS;
 using MathConst::DEG2RAD;
@@ -76,7 +77,7 @@ void DihedralCharmm::compute(int eflag, int vflag)
   edihedral = evdwl = ecoul = 0.0;
   ev_init(eflag, vflag);
 
-  // insure pair->ev_tally() will use 1-4 virial contribution
+  // ensure pair->ev_tally() will use 1-4 virial contribution
 
   if (weightflag && vflag_global == VIRIAL_FDOTR)
     force->pair->vflag_either = force->pair->vflag_global = 1;
@@ -307,7 +308,7 @@ void DihedralCharmm::allocate()
 
 void DihedralCharmm::coeff(int narg, char **arg)
 {
-  if (narg != 5) error->all(FLERR, "Incorrect args for dihedral coefficients");
+  if (narg != 5) error->all(FLERR, "Incorrect args for dihedral coefficients" + utils::errorurl(21));
   if (!allocated) allocate();
 
   int ilo, ihi;
@@ -340,7 +341,7 @@ void DihedralCharmm::coeff(int narg, char **arg)
     count++;
   }
 
-  if (count == 0) error->all(FLERR, "Incorrect args for dihedral coefficients");
+  if (count == 0) error->all(FLERR, "Incorrect args for dihedral coefficients" + utils::errorurl(21));
 }
 
 /* ----------------------------------------------------------------------
@@ -350,14 +351,14 @@ void DihedralCharmm::coeff(int narg, char **arg)
 void DihedralCharmm::init_style()
 {
   if (utils::strmatch(update->integrate_style, "^respa")) {
-    auto r = dynamic_cast<Respa *>(update->integrate);
+    auto *r = dynamic_cast<Respa *>(update->integrate);
     if (r->level_pair >= 0 && (r->level_pair != r->level_dihedral))
       error->all(FLERR, "Dihedral style charmm must be set to same r-RESPA level as 'pair'");
     if (r->level_outer >= 0 && (r->level_outer != r->level_dihedral))
       error->all(FLERR, "Dihedral style charmm must be set to same r-RESPA level as 'outer'");
   }
 
-  // insure use of CHARMM pair_style if any weight factors are non-zero
+  // ensure use of CHARMM pair_style if any weight factors are non-zero
   // set local ptrs to LJ 14 arrays setup by Pair
   // also verify that the correct 1-4 scaling is set
 
@@ -431,4 +432,17 @@ void DihedralCharmm::write_data(FILE *fp)
 {
   for (int i = 1; i <= atom->ndihedraltypes; i++)
     fprintf(fp, "%d %g %d %d %g\n", i, k[i], multiplicity[i], shift[i], weight[i]);
+}
+
+/* ----------------------------------------------------------------------
+   return ptr to internal members upon request
+------------------------------------------------------------------------ */
+
+void *DihedralCharmm::extract(const char *str, int &dim)
+{
+  dim = 1;
+  if (strcmp(str, "k") == 0) return (void *) k;
+  if (strcmp(str, "n") == 0) return (void *) multiplicity;
+  if (strcmp(str, "d") == 0) return (void *) shift;
+  return nullptr;
 }

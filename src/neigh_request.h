@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -26,10 +26,13 @@ class NeighRequest : protected Pointers {
   friend class NStencil;
   friend class NeighborKokkos;
   friend class NPairSkipIntel;
+  friend class NPairSkipTrimIntel;
   friend class FixIntel;
 
+ public:
+  enum { REGULAR, INTRA, INTER };
+
  protected:
-  int index;                 // index of which neigh request this is
   void *requestor;           // class that made request
   int requestor_instance;    // instance of that class (only Fix, Compute, Pair)
   int id;                    // ID of request as stored by requestor
@@ -88,6 +91,7 @@ class NeighRequest : protected Pointers {
   int skip;        // 1 if this list skips atom types from another list
   int *iskip;      // iskip[i] if atoms of type I are not in list
   int **ijskip;    // ijskip[i][j] if pairs of type I,J are not in list
+  int molskip;     // 0 reqular list, 1 keep only intra-molecular entries, 2 keep inter-molecular
 
   // command_style only set if command = 1
   // allows print_pair_info() to access command name
@@ -102,6 +106,7 @@ class NeighRequest : protected Pointers {
   int off2on;      // 1 if this is newton on list, but skips from off list
 
   int copy;        // 1 if this list copied from another list
+  int trim;        // 1 if this list trimmed from another list
   int copylist;    // index of list to copy from
 
   int halffull;        // 1 if half list computed from another full list
@@ -121,7 +126,7 @@ class NeighRequest : protected Pointers {
   // methods
  public:
   NeighRequest(class LAMMPS *);
-  NeighRequest(class LAMMPS *, int, void *, int);
+  NeighRequest(class LAMMPS *, void *, int);
   NeighRequest(NeighRequest *);
   ~NeighRequest() override;
 
@@ -136,6 +141,7 @@ class NeighRequest : protected Pointers {
   void set_kokkos_device(int);
   void set_kokkos_host(int);
   void set_skip(int *, int **);
+  void set_molskip(int);
   void enable_full();
   void enable_ghost();
   void enable_intel();

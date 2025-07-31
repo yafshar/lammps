@@ -6,7 +6,7 @@ compute msd command
 Syntax
 """"""
 
-.. parsed-literal::
+.. code-block:: LAMMPS
 
    compute ID group-ID msd keyword values ...
 
@@ -34,12 +34,13 @@ Description
 Define a computation that calculates the mean-squared displacement
 (MSD) of the group of atoms, including all effects due to atoms
 passing through periodic boundaries.  For computation of the non-Gaussian
-parameter of mean-squared displacement, see the :doc:`compute msd/nongauss <compute_msd_nongauss>` command.
+parameter of mean-squared displacement, see the
+:doc:`compute msd/nongauss <compute_msd_nongauss>` command.
 
-A vector of four quantities is calculated by this compute.  The first 3
-elements of the vector are the squared dx,dy,dz displacements, summed
-and averaged over atoms in the group.  The fourth element is the total
-squared displacement, i.e. (dx\*dx + dy\*dy + dz\*dz), summed and
+A vector of four quantities is calculated by this compute.  The first three
+elements of the vector are the squared *dx*, *dy*, and *dz* displacements,
+summed and averaged over atoms in the group.  The fourth element is the total
+squared displacement (i.e., :math:`dx^2 + dy^2 + dz^2`), summed and
 averaged over atoms in the group.
 
 The slope of the mean-squared displacement (MSD) versus time is
@@ -48,8 +49,6 @@ proportional to the diffusion coefficient of the diffusing atoms.
 The displacement of an atom is from its reference position. This is
 normally the original position at the time
 the compute command was issued, unless the *average* keyword is set to *yes*\ .
-The value of the displacement will be
-0.0 for atoms not in the specified compute group.
 
 If the *com* option is set to *yes* then the effect of any drift in
 the center-of-mass of the group of atoms is subtracted out before the
@@ -100,22 +99,27 @@ Output info
 """""""""""
 
 This compute calculates a global vector of length 4, which can be
-accessed by indices 1-4 by any command that uses global vector values
+accessed by indices 1--4 by any command that uses global vector values
 from a compute as input.  See the :doc:`Howto output <Howto_output>` doc
 page for an overview of LAMMPS output options.
 
 The vector values are "intensive".  The vector values will be in
-distance\^2 :doc:`units <units>`.
+distance\ :math:`^2` :doc:`units <units>`.
 
 Restrictions
 """"""""""""
 
-Compute *msd* cannot be used with a dynamic group.
+Compute *msd* cannot be used with a dynamic group and the number of
+atoms in the compute group must not be changed by some fixes like,
+for example, :doc:`fix deposit <fix_deposit>` or
+:doc:`fix evaporate <fix_evaporate>`.
 
 Related commands
 """"""""""""""""
 
-:doc:`compute msd/nongauss <compute_msd_nongauss>`, :doc:`compute displace_atom <compute_displace_atom>`, :doc:`fix store/state <fix_store_state>`, :doc:`compute msd/chunk <compute_msd_chunk>`
+:doc:`compute msd/nongauss <compute_msd_nongauss>`,
+:doc:`compute displace_atom <compute_displace_atom>`, :doc:`fix store/state <fix_store_state>`,
+:doc:`compute msd/chunk <compute_msd_chunk>`
 
 Default
 """""""

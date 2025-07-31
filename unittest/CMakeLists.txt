@@ -1,12 +1,17 @@
-########################################
-# CMake build for automated testing
+# -*- CMake -*- build file for automated testing
 # This file is part of LAMMPS
 # Created by Axel Kohlmeyer and Richard Berger
 ########################################
+
 # download and build googletest framework
+# cannot compile googletest anymore with the default GCC on RHEL 7.x
+if((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") AND (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 6.0))
+  message(FATAL_ERROR "Need GNU C++ compiler version 6.x or later for unit testing")
+endif()
+
 message(STATUS "Downloading and building googletest framework")
-set(GTEST_URL "https://github.com/google/googletest/archive/8d51dc50eb7e7698427fed81b85edad0e032112e.tar.gz" CACHE STRING "URL of googletest source")
-set(GTEST_MD5 "bc33f94adf48a91051dc195077f7e8dc" CACHE STRING "MD5 sum for googletest source")
+set(GTEST_URL "https://github.com/google/googletest/archive/release-1.12.1.tar.gz" CACHE STRING "URL of googletest source")
+set(GTEST_MD5 "e82199374acdfda3f425331028eb4e2a" CACHE STRING "MD5 sum for googletest source")
 mark_as_advanced(GTEST_URL)
 mark_as_advanced(GTEST_MD5)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
@@ -23,11 +28,16 @@ add_library(GTest::GMock ALIAS gmock)
 add_library(GTest::GTestMain ALIAS gtest_main)
 add_library(GTest::GMockMain ALIAS gmock_main)
 
-# import
-foreach(_FLAG ${CMAKE_TUNE_FLAGS})
-  add_compile_options(${_FLAG})
-endforeach()
+option(SKIP_DEATH_TESTS "Do not run 'death tests' to reduce false positives in valgrind" OFF)
+mark_as_advanced(SKIP_DEATH_TESTS)
+if(SKIP_DEATH_TESTS)
+  add_compile_definitions(LAMMPS_SKIP_DEATH_TESTS)
+endif()
 
+# must repeat handling coverage for older CMake
+if((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") AND ENABLE_COVERAGE)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_${CMAKE_BUILD_TYPE}_FLAGS} --coverage")
+endif()
 
 ########################################
 # General tests using the LAMMPS executable itself
@@ -40,7 +50,7 @@ add_test(NAME RunLammps
          COMMAND $<TARGET_FILE:lmp> -log none -echo none -in in.empty)
 set_tests_properties(RunLammps PROPERTIES
         ENVIRONMENT "TSAN_OPTIONS=ignore_noninstrumented_modules=1;HWLOC_HIDE_ERRORS=2"
-        PASS_REGULAR_EXPRESSION "LAMMPS \\([0-9]+ [A-Za-z]+ 2[0-9][0-9][0-9]( - Update [0-9]+)?\\)")
+        PASS_REGULAR_EXPRESSION "LAMMPS \\([0-9]+ [A-Za-z]+ 2[0-9][0-9][0-9]( - Update [0-9]+)?( - Development.*)?( - Maintenance.*)?\\)")
 
 # check if the compiled executable will print the help message
 add_test(NAME HelpMessage
@@ -90,7 +100,6 @@ add_subdirectory(c-library)
 add_subdirectory(cplusplus)
 add_subdirectory(fortran)
 add_subdirectory(python)
-add_subdirectory(tools)
 add_subdirectory(force-styles)
 
 # clang-format support for test sources

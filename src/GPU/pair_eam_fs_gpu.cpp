@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,14 +21,12 @@
 #include "comm.h"
 #include "domain.h"
 #include "error.h"
-#include "force.h"
 #include "gpu_extra.h"
 #include "memory.h"
 #include "neigh_list.h"
 #include "neighbor.h"
 #include "potential_file_reader.h"
 #include "suffix.h"
-#include "tokenizer.h"
 
 #include <cmath>
 #include <cstring>
@@ -138,6 +136,7 @@ void PairEAMFSGPU::compute(int eflag, int vflag)
     eam_fs_gpu_compute_force(nullptr, eflag, vflag, eflag_atom, vflag_atom);
   else
     eam_fs_gpu_compute_force(ilist, eflag, vflag, eflag_atom, vflag_atom);
+  if (atom->molecular != Atom::ATOMIC && neighbor->ago == 0) neighbor->build_topology();
 }
 
 /* ----------------------------------------------------------------------
@@ -236,13 +235,13 @@ int PairEAMFSGPU::pack_forward_comm(int n, int *list, double *buf, int /* pbc_fl
   m = 0;
 
   if (fp_single) {
-    auto fp_ptr = (float *) fp_pinned;
+    auto *fp_ptr = (float *) fp_pinned;
     for (i = 0; i < n; i++) {
       j = list[i];
       buf[m++] = static_cast<double>(fp_ptr[j]);
     }
   } else {
-    auto fp_ptr = (double *) fp_pinned;
+    auto *fp_ptr = (double *) fp_pinned;
     for (i = 0; i < n; i++) {
       j = list[i];
       buf[m++] = fp_ptr[j];
@@ -261,10 +260,10 @@ void PairEAMFSGPU::unpack_forward_comm(int n, int first, double *buf)
   m = 0;
   last = first + n;
   if (fp_single) {
-    auto fp_ptr = (float *) fp_pinned;
+    auto *fp_ptr = (float *) fp_pinned;
     for (i = first; i < last; i++) fp_ptr[i] = buf[m++];
   } else {
-    auto fp_ptr = (double *) fp_pinned;
+    auto *fp_ptr = (double *) fp_pinned;
     for (i = first; i < last; i++) fp_ptr[i] = buf[m++];
   }
 }
@@ -280,12 +279,8 @@ void PairEAMFSGPU::coeff(int narg, char **arg)
 
   if (!allocated) allocate();
 
-  if (narg != 3 + atom->ntypes) error->all(FLERR, "Incorrect args for pair coefficients");
-
-  // insure I,J args are * *
-
-  if (strcmp(arg[0], "*") != 0 || strcmp(arg[1], "*") != 0)
-    error->all(FLERR, "Incorrect args for pair coefficients");
+  if (narg != 3 + atom->ntypes)
+    error->all(FLERR, "Number of element to type mappings does not match number of atom types");
 
   // read EAM Finnis-Sinclair file
 
@@ -338,7 +333,7 @@ void PairEAMFSGPU::coeff(int narg, char **arg)
     }
   }
 
-  if (count == 0) error->all(FLERR, "Incorrect args for pair coefficients");
+  if (count == 0) error->all(FLERR, "Incorrect args for pair coefficients" + utils::errorurl(21));
 }
 
 /* ----------------------------------------------------------------------

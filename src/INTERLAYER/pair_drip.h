@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -45,7 +45,7 @@ class PairDRIP : public Pair {
   void init_style() override;
 
   static constexpr int NPARAMS_PER_LINE = 15;
-  typedef double V3[3];
+  using V3 = double[3];
 
  protected:
   struct Param {

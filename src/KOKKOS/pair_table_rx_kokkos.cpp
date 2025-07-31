@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -24,6 +24,7 @@
 #include "error.h"
 #include "fix.h"
 #include "force.h"
+#include "info.h"
 #include "kokkos.h"
 #include "kokkos.h"
 #include "kokkos_few.h"
@@ -1069,7 +1070,7 @@ void PairTableRXKokkos<DeviceType>::coeff(int narg, char **arg)
   else tb->cut = tb->rfile[tb->ninput-1];
 
   // error check on table parameters
-  // insure cutoff is within table
+  // ensure cutoff is within table
   // for BITMAP tables, file values can be in non-ascending order
 
   if (tb->ninput <= 1) error->one(FLERR,"Invalid pair table length");
@@ -1159,7 +1160,9 @@ void PairTableRXKokkos<DeviceType>::coeff(int narg, char **arg)
 template<class DeviceType>
 double PairTableRXKokkos<DeviceType>::init_one(int i, int j)
 {
-  if (setflag[i][j] == 0) error->all(FLERR,"All pair coeffs are not set");
+  if (setflag[i][j] == 0)
+    error->all(FLERR, Error::NOLASTLINE,
+               "All pair coeffs are not set. Status\n" + Info::get_pair_coeff_status(lmp));
 
   tabindex[j][i] = tabindex[i][j];
 
@@ -1267,9 +1270,9 @@ void PairTableRXKokkos<DeviceType>::init_style()
 {
   neighflag = lmp->kokkos->neighflag;
   auto request = neighbor->add_request(this);
-  request->set_kokkos_host(std::is_same<DeviceType,LMPHostType>::value &&
-                           !std::is_same<DeviceType,LMPDeviceType>::value);
-  request->set_kokkos_device(std::is_same<DeviceType,LMPDeviceType>::value);
+  request->set_kokkos_host(std::is_same_v<DeviceType,LMPHostType> &&
+                           !std::is_same_v<DeviceType,LMPDeviceType>);
+  request->set_kokkos_device(std::is_same_v<DeviceType,LMPDeviceType>);
   if (neighflag == FULL) request->enable_full();
 }
 

@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -30,7 +30,10 @@ using namespace LAMMPS_NS;
 
 /* ---------------------------------------------------------------------- */
 
-BondMorse::BondMorse(LAMMPS *_lmp) : Bond(_lmp) {}
+BondMorse::BondMorse(LAMMPS *_lmp) : Bond(_lmp)
+{
+  born_matrix_enable = 1;
+}
 
 /* ---------------------------------------------------------------------- */
 
@@ -123,7 +126,7 @@ void BondMorse::allocate()
 
 void BondMorse::coeff(int narg, char **arg)
 {
-  if (narg != 4) error->all(FLERR, "Incorrect args for bond coefficients");
+  if (narg != 4) error->all(FLERR, "Incorrect args for bond coefficients" + utils::errorurl(21));
   if (!allocated) allocate();
 
   int ilo, ihi;
@@ -142,7 +145,7 @@ void BondMorse::coeff(int narg, char **arg)
     count++;
   }
 
-  if (count == 0) error->all(FLERR, "Incorrect args for bond coefficients");
+  if (count == 0) error->all(FLERR, "Incorrect args for bond coefficients" + utils::errorurl(21));
 }
 
 /* ----------------------------------------------------------------------
@@ -209,9 +212,23 @@ double BondMorse::single(int type, double rsq, int /*i*/, int /*j*/, double &ffo
 
 /* ---------------------------------------------------------------------- */
 
+void BondMorse::born_matrix(int type, double rsq, int /*i*/, int /*j*/, double &du, double &du2)
+{
+  double r = sqrt(rsq);
+  double dr = r - r0[type];
+  double ralpha = exp(-alpha[type] * dr);
+
+  du = 2.0 * d0[type] * alpha[type] * (1.0 - ralpha) * ralpha;
+  du2 = -2.0 * d0[type] * alpha[type] * alpha[type] * (1.0 - 2.0 * ralpha) * ralpha;
+}
+
+/* ---------------------------------------------------------------------- */
+
 void *BondMorse::extract(const char *str, int &dim)
 {
   dim = 1;
+  if (strcmp(str, "d0") == 0) return (void *) d0;
+  if (strcmp(str, "alpha") == 0) return (void *) alpha;
   if (strcmp(str, "r0") == 0) return (void *) r0;
   return nullptr;
 }

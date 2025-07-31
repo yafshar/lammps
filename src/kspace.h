@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -16,14 +16,6 @@
 
 #include "pointers.h"    // IWYU pragma: export
 
-#ifdef FFT_SINGLE
-typedef float FFT_SCALAR;
-#define MPI_FFT_SCALAR MPI_FLOAT
-#else
-typedef double FFT_SCALAR;
-#define MPI_FFT_SCALAR MPI_DOUBLE
-#endif
-
 namespace LAMMPS_NS {
 
 class KSpace : protected Pointers {
@@ -31,6 +23,49 @@ class KSpace : protected Pointers {
   friend class FixOMP;
 
  public:
+  enum {
+    REVERSE_RHO,
+    REVERSE_RHO_GEOM,
+    REVERSE_RHO_ARITH,
+    REVERSE_RHO_NONE,
+    REVERSE_RHO_GPU,
+    REVERSE_RHO_G,
+    REVERSE_RHO_A,
+    REVERSE_AD,
+    REVERSE_AD_PERATOM,
+    REVERSE_MU,
+    REVERSE_MU_PERATOM
+  };
+  enum {
+    FORWARD_RHO,
+    FORWARD_IK,
+    FORWARD_AD,
+    FORWARD_MU,
+    FORWARD_IK_PERATOM,
+    FORWARD_AD_PERATOM,
+    FORWARD_MU_PERATOM,
+    FORWARD_IK_GEOM,
+    FORWARD_AD_GEOM,
+    FORWARD_IK_PERATOM_GEOM,
+    FORWARD_AD_PERATOM_GEOM,
+    FORWARD_IK_ARITH,
+    FORWARD_AD_ARITH,
+    FORWARD_IK_PERATOM_ARITH,
+    FORWARD_AD_PERATOM_ARITH,
+    FORWARD_IK_NONE,
+    FORWARD_AD_NONE,
+    FORWARD_IK_PERATOM_NONE,
+    FORWARD_AD_PERATOM_NONE,
+    FORWARD_IK_G,
+    FORWARD_AD_G,
+    FORWARD_IK_PERATOM_G,
+    FORWARD_AD_PERATOM_G,
+    FORWARD_IK_A,
+    FORWARD_AD_A,
+    FORWARD_IK_PERATOM_A,
+    FORWARD_AD_PERATOM_A
+  };
+
   double energy;    // accumulated energies
   double energy_1, energy_6;
   double virial[6];          // accumulated virial: xx,yy,zz,xy,xz,yz
@@ -106,32 +141,31 @@ class KSpace : protected Pointers {
   void triclinic_check();
   void modify_params(int, char **);
   void *extract(const char *);
-  void compute_dummy(int, int);
+  void compute_dummy(int eflag, int vflag, int alloc = 1);
 
   // triclinic
 
   void x2lamdaT(double *, double *);
   void lamda2xT(double *, double *);
   void lamda2xvector(double *, double *);
-  void kspacebbox(double, double *);
 
   // public so can be called by commands that change charge
 
-  void qsum_qsq(int warning_flag = 1);
+  virtual void qsum_qsq(int warning_flag = 1);
 
   // general child-class methods
 
-  virtual void settings(int, char **){};
+  virtual void settings(int, char **) {};
   virtual void init() = 0;
   virtual void setup() = 0;
-  virtual void setup_grid(){};
+  virtual void reset_grid() {};
   virtual void compute(int, int) = 0;
-  virtual void compute_group_group(int, int, int){};
+  virtual void compute_group_group(int, int, int) {};
 
-  virtual void pack_forward_grid(int, void *, int, int *){};
-  virtual void unpack_forward_grid(int, void *, int, int *){};
-  virtual void pack_reverse_grid(int, void *, int, int *){};
-  virtual void unpack_reverse_grid(int, void *, int, int *){};
+  virtual void pack_forward_grid(int, void *, int, int *) {};
+  virtual void unpack_forward_grid(int, void *, int, int *) {};
+  virtual void pack_reverse_grid(int, void *, int, int *) {};
+  virtual void unpack_reverse_grid(int, void *, int, int *) {};
 
   virtual int timing(int, double &, double &) { return 0; }
   virtual int timing_1d(int, double &) { return 0; }

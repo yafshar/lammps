@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -121,10 +121,12 @@ Respa::Respa(LAMMPS *lmp, int narg, char **arg) :
       // the hybrid keyword requires a hybrid pair style
       if (!utils::strmatch(force->pair_style, "^hybrid"))
         error->all(FLERR, "Illegal run_style respa command");
-      auto hybrid = dynamic_cast<PairHybrid *>(force->pair);
+      auto *hybrid = dynamic_cast<PairHybrid *>(force->pair);
       nhybrid_styles = hybrid->nstyles;
       // each hybrid sub-style needs to be assigned to a respa level
       if (iarg + nhybrid_styles > narg) error->all(FLERR, "Illegal run_style respa command");
+      delete[] hybrid_level;
+      delete[] hybrid_compute;
       hybrid_level = new int[nhybrid_styles];
       hybrid_compute = new int[nhybrid_styles];
       for (int i = 0; i < nhybrid_styles; ++i) {
@@ -298,7 +300,7 @@ void Respa::init()
   if (atom->torque_flag) cmd += " torque";
   fix_respa = dynamic_cast<FixRespa *>(modify->add_fix(cmd));
 
-  // insure respa inner/middle/outer is using Pair class that supports it
+  // ensure respa inner/middle/outer is using Pair class that supports it
 
   if (level_inner >= 0)
     if (force->pair && force->pair->respa_enable == 0)
@@ -372,7 +374,7 @@ void Respa::setup(int flag)
         mesg += fmt::format(" {}:{}", ilevel + 1, step[ilevel]);
 
       mesg += "\n  r-RESPA fixes :";
-      for (int l = 0; l < modify->n_post_force_respa_any; ++l) {
+      for (int l = 0; l < modify->n_post_force_respa; ++l) {
         Fix *f = modify->get_fix_by_index(modify->list_post_force_respa[l]);
         if (f->respa_level >= 0)
           mesg += fmt::format(" {}:{}[{}]", MIN(f->respa_level + 1, nlevels), f->style, f->id);

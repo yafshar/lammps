@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -36,19 +36,19 @@ using namespace LAMMPS_NS;
 using namespace MathConst;
 
 static const char cite_dihedral_tablecut[] =
-  "dihedral_style  table/cut  command:\n\n"
+  "dihedral_style table/cut command: doi:10.1021/acs.jctc.7b01229\n\n"
   "@Article{Salerno17,\n"
   " author =  {K. M. Salerno and N. Bernstein},\n"
   " title =   {Persistence Length, End-to-End Distance, and Structure of Coarse-Grained Polymers},\n"
-  " journal = {J.~Chem.~Theory Comput.},\n"
+  " journal = {J.~Chem.\\ Theory Comput.},\n"
   " year =    2018,\n"
-  " DOI = 10.1021/acs.jctc.7b01229"
+  " DOI = \"10.1021/acs.jctc.7b01229\"\n"
   "}\n\n";
 
 /* ---------------------------------------------------------------------- */
 
-#define TOLERANCE 0.05
-#define SMALL     0.0000001
+static constexpr double TOLERANCE = 0.05;
+static constexpr double SMALL =     0.0000001;
 
 // ------------------------------------------------------------------------
 // The following auxiliary functions were left out of the
@@ -451,7 +451,7 @@ void DihedralTableCut::allocate()
 
 void DihedralTableCut::coeff(int narg, char **arg)
 {
-  if (narg != 7) error->all(FLERR,"Incorrect args for dihedral coefficients");
+  if (narg != 7) error->all(FLERR,"Incorrect args for dihedral coefficients" + utils::errorurl(21));
   if (!allocated) allocate();
 
   int ilo,ihi;
@@ -523,9 +523,9 @@ void DihedralTableCut::coeff(int narg, char **arg)
   // We also want the angles to be sorted in increasing order.
   // This messy code fixes these problems with the user's data:
   {
-    auto phifile_tmp = new double[tb->ninput];  //temporary arrays
-    auto ffile_tmp = new double[tb->ninput];  //used for sorting
-    auto efile_tmp = new double[tb->ninput];
+    auto *phifile_tmp = new double[tb->ninput];  //temporary arrays
+    auto *ffile_tmp = new double[tb->ninput];  //used for sorting
+    auto *efile_tmp = new double[tb->ninput];
 
     // After re-imaging, does the range of angles cross the 0 or 2*PI boundary?
     // If so, find the discontinuity:
@@ -539,7 +539,7 @@ void DihedralTableCut::coeff(int narg, char **arg)
       ffile_tmp[i] = tb->ffile[i];
       if ((i>0) && (phifile_tmp[i] < phifile_tmp[i-1])) {
         //There should only be at most one discontinuity, because we have
-        //insured that the data was sorted before imaging, and because the
+        //ensured that the data was sorted before imaging, and because the
         //range of angle values does not exceed 2*PI.
         i_discontinuity = i;
       }
@@ -628,5 +628,5 @@ void DihedralTableCut::coeff(int narg, char **arg)
   }
   ntables++;
 
-  if (count == 0) error->all(FLERR,"Incorrect args for dihedral coefficients");
+  if (count == 0) error->all(FLERR,"Incorrect args for dihedral coefficients" + utils::errorurl(21));
 }

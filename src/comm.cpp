@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -42,7 +42,7 @@
 
 using namespace LAMMPS_NS;
 
-#define BUFEXTRA 1024
+static constexpr int BUFEXTRA = 1024;
 
 enum{ONELEVEL,TWOLEVEL,NUMA,CUSTOM};
 enum{CART,CARTREORDER,XYZ};
@@ -75,6 +75,7 @@ Comm::Comm(LAMMPS *lmp) : Pointers(lmp)
   maxexchange = maxexchange_atom = maxexchange_fix = 0;
   maxexchange_fix_dynamic = 0;
   bufextra = BUFEXTRA;
+  bufextra_max = bufextra;
 
   grid2proc = nullptr;
   xsplit = ysplit = zsplit = nullptr;
@@ -91,12 +92,11 @@ Comm::Comm(LAMMPS *lmp) : Pointers(lmp)
   nthreads = 1;
 #ifdef _OPENMP
   if (lmp->kokkos) {
-    nthreads = lmp->kokkos->nthreads * lmp->kokkos->numa;
+    nthreads = lmp->kokkos->nthreads;
   } else if (getenv("OMP_NUM_THREADS") == nullptr) {
     nthreads = 1;
     if (me == 0)
-      error->message(FLERR,"OMP_NUM_THREADS environment is not set. "
-                           "Defaulting to 1 thread.");
+      utils::logmesg(lmp,"OMP_NUM_THREADS environment is not set. Defaulting to 1 thread.\n");
   } else {
     nthreads = omp_get_max_threads();
   }
@@ -222,18 +222,18 @@ void Comm::init()
   if (force->bond) maxreverse = MAX(maxreverse,force->bond->comm_reverse);
 
   for (const auto &fix : fix_list) {
-    maxforward = MAX(maxforward,fix->comm_forward);
-    maxreverse = MAX(maxreverse,fix->comm_reverse);
+    maxforward = MAX(maxforward, fix->comm_forward);
+    maxreverse = MAX(maxreverse, fix->comm_reverse);
   }
 
-  for (int i = 0; i < modify->ncompute; i++) {
-    maxforward = MAX(maxforward,modify->compute[i]->comm_forward);
-    maxreverse = MAX(maxreverse,modify->compute[i]->comm_reverse);
+  for (const auto &compute : modify->get_compute_list()) {
+    maxforward = MAX(maxforward, compute->comm_forward);
+    maxreverse = MAX(maxreverse, compute->comm_reverse);
   }
 
-  for (int i = 0; i < output->ndump; i++) {
-    maxforward = MAX(maxforward,output->dump[i]->comm_forward);
-    maxreverse = MAX(maxreverse,output->dump[i]->comm_reverse);
+  for (const auto &dump: output->get_dump_list()) {
+    maxforward = MAX(maxforward, dump->comm_forward);
+    maxreverse = MAX(maxreverse, dump->comm_reverse);
   }
 
   if (force->newton == 0) maxreverse = 0;
@@ -247,8 +247,7 @@ void Comm::init()
   maxexchange_atom = atom->avec->maxexchange;
 
   maxexchange_fix_dynamic = 0;
-  for (const auto &fix : fix_list)
-    if (fix->maxexchange_dynamic) maxexchange_fix_dynamic = 1;
+  for (const auto &fix : fix_list) if (fix->maxexchange_dynamic) maxexchange_fix_dynamic = 1;
 
   if ((mode == Comm::MULTI) && (neighbor->style != Neighbor::MULTI))
     error->all(FLERR,"Cannot use comm mode multi without multi-style neighbor lists");
@@ -270,8 +269,7 @@ void Comm::init()
 void Comm::init_exchange()
 {
   maxexchange_fix = 0;
-  for (const auto &fix : modify->get_fix_list())
-    maxexchange_fix += fix->maxexchange;
+  for (const auto &fix : modify->get_fix_list()) maxexchange_fix += fix->maxexchange;
 
   maxexchange = maxexchange_atom + maxexchange_fix;
   bufextra = maxexchange + BUFEXTRA;
@@ -284,12 +282,12 @@ void Comm::init_exchange()
 
 void Comm::modify_params(int narg, char **arg)
 {
-  if (narg < 1) error->all(FLERR,"Illegal comm_modify command");
+  if (narg < 1) utils::missing_cmd_args(FLERR, "comm_modify", error);
 
   int iarg = 0;
   while (iarg < narg) {
     if (strcmp(arg[iarg],"mode") == 0) {
-      if (iarg+2 > narg) error->all(FLERR,"Illegal comm_modify command");
+      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "comm_modify mode", error);
       if (strcmp(arg[iarg+1],"single") == 0) {
         // need to reset cutghostuser when switching comm mode
         if (mode == Comm::MULTI) cutghostuser = 0.0;
@@ -299,50 +297,57 @@ void Comm::modify_params(int narg, char **arg)
         mode = Comm::SINGLE;
       } else if (strcmp(arg[iarg+1],"multi") == 0) {
         if (neighbor->style != Neighbor::MULTI)
-          error->all(FLERR,"Cannot use comm mode 'multi' without 'multi' style neighbor lists");
+          error->all(FLERR, iarg+1,
+                     "Cannot use comm mode 'multi' without 'multi' style neighbor lists");
         // need to reset cutghostuser when switching comm mode
         if (mode == Comm::SINGLE) cutghostuser = 0.0;
         if (mode == Comm::MULTIOLD) cutghostuser = 0.0;
         memory->destroy(cutusermultiold);
         mode = Comm::MULTI;
       } else if (strcmp(arg[iarg+1],"multi/old") == 0) {
+        if (me == 0)
+          error->warning(FLERR, "Comm mode 'multi/old' is deprecated and will be removed soon.\n"
+                         "Please contact the LAMMPS developers if you cannot use mode 'multi'."
+                         + utils::errorurl(35));
         if (neighbor->style == Neighbor::MULTI)
-          error->all(FLERR,"Cannot use comm mode 'multi/old' with 'multi' style neighbor lists");
+          error->all(FLERR, iarg+1,
+                     "Cannot use comm mode 'multi/old' with 'multi' style neighbor lists");
         // need to reset cutghostuser when switching comm mode
         if (mode == Comm::SINGLE) cutghostuser = 0.0;
         if (mode == Comm::MULTI) cutghostuser = 0.0;
         memory->destroy(cutusermulti);
         mode = Comm::MULTIOLD;
-      } else error->all(FLERR,"Illegal comm_modify command");
+      } else error->all(FLERR, iarg+1, "Unknown comm_modify mode argument: {}", arg[iarg+1]);
       iarg += 2;
     } else if (strcmp(arg[iarg],"group") == 0) {
-      if (iarg+2 > narg) error->all(FLERR,"Illegal comm_modify command");
+      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "comm_modify group", error);
       bordergroup = group->find(arg[iarg+1]);
       if (bordergroup < 0)
-        error->all(FLERR,"Invalid group in comm_modify command");
-      if (bordergroup && (atom->firstgroupname == nullptr ||
-                          strcmp(arg[iarg+1],atom->firstgroupname) != 0))
-        error->all(FLERR,"Comm_modify group != atom_modify first group");
+        error->all(FLERR, iarg+1, "Invalid comm_modify keyword: group {} not found", arg[iarg+1]);
+      if (bordergroup && ((atom->firstgroupname == nullptr)
+                          || strcmp(arg[iarg+1],atom->firstgroupname) != 0))
+        error->all(FLERR, iarg+1,
+                   "Comm_modify group != atom_modify first group: {}", atom->firstgroupname);
       iarg += 2;
     } else if (strcmp(arg[iarg],"cutoff") == 0) {
-      if (iarg+2 > narg) error->all(FLERR,"Illegal comm_modify command");
+      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "comm_modify cutoff", error);
       if (mode == Comm::MULTI)
-        error->all(FLERR, "Use cutoff/multi keyword to set cutoff in multi mode");
+        error->all(FLERR, iarg, "Use cutoff/multi keyword to set cutoff in multi mode");
       if (mode == Comm::MULTIOLD)
-        error->all(FLERR, "Use cutoff/multi/old keyword to set cutoff in multi mode");
+        error->all(FLERR, iarg, "Use cutoff/multi/old keyword to set cutoff in multi/old mode");
       cutghostuser = utils::numeric(FLERR,arg[iarg+1],false,lmp);
       if (cutghostuser < 0.0)
-        error->all(FLERR,"Invalid cutoff in comm_modify command");
+        error->all(FLERR, iarg+1, "Invalid cutoff {} in comm_modify command", arg[iarg+1]);
       iarg += 2;
     } else if (strcmp(arg[iarg],"cutoff/multi") == 0) {
       int i,nlo,nhi;
       double cut;
       if (mode == Comm::SINGLE)
-        error->all(FLERR,"Use cutoff keyword to set cutoff in single mode");
+        error->all(FLERR, iarg, "Use cutoff keyword to set cutoff in single mode");
       if (mode == Comm::MULTIOLD)
-        error->all(FLERR,"Use cutoff/multi/old keyword to set cutoff in multi/old mode");
+        error->all(FLERR, iarg, "Use cutoff/multi/old keyword to set cutoff in multi/old mode");
       if (domain->box_exist == 0)
-        error->all(FLERR, "Cannot set cutoff/multi before simulation box is defined");
+        error->all(FLERR, iarg, "Cannot set cutoff/multi before simulation box is defined");
 
       // Check if # of collections has changed, if so erase any previously defined cutoffs
       // Neighbor will reset ncollections if collections are redefined
@@ -357,7 +362,7 @@ void Comm::modify_params(int narg, char **arg)
       cut = utils::numeric(FLERR,arg[iarg+2],false,lmp);
       cutghostuser = MAX(cutghostuser,cut);
       if (cut < 0.0)
-        error->all(FLERR,"Invalid cutoff in comm_modify command");
+        error->all(FLERR, iarg+1, "Invalid cutoff {} in comm_modify command", arg[iarg+2]);
       // collections use 1-based indexing externally and 0-based indexing internally
       for (i=nlo; i<=nhi; ++i)
         cutusermulti[i-1] = cut;
@@ -365,15 +370,19 @@ void Comm::modify_params(int narg, char **arg)
     }  else if (strcmp(arg[iarg],"cutoff/multi/old") == 0) {
       int i,nlo,nhi;
       double cut;
+      if (me == 0)
+        error->warning(FLERR, "Comm mode 'multi/old' is deprecated and will be removed soon.\n"
+                       "Please contact the LAMMPS developers if you cannot use mode 'multi'."
+                       + utils::errorurl(35));
       if (mode == Comm::SINGLE)
-        error->all(FLERR,"Use cutoff keyword to set cutoff in single mode");
+        error->all(FLERR, iarg, "Use cutoff keyword to set cutoff in single mode");
       if (mode == Comm::MULTI)
-        error->all(FLERR,"Use cutoff/multi keyword to set cutoff in multi mode");
+        error->all(FLERR, iarg, "Use cutoff/multi keyword to set cutoff in multi mode");
       if (domain->box_exist == 0)
-        error->all(FLERR, "Cannot set cutoff/multi before simulation box is defined");
+        error->all(FLERR, iarg, "Cannot set cutoff/multi/old before simulation box is defined");
+
       const int ntypes = atom->ntypes;
-      if (iarg+3 > narg)
-        error->all(FLERR,"Illegal comm_modify command");
+      if (iarg+3 > narg) utils::missing_cmd_args(FLERR, "comm_modify cutoff/multi/old", error);
       if (cutusermultiold == nullptr) {
         memory->create(cutusermultiold,ntypes+1,"comm:cutusermultiold");
         for (i=0; i < ntypes+1; ++i)
@@ -383,20 +392,20 @@ void Comm::modify_params(int narg, char **arg)
       cut = utils::numeric(FLERR,arg[iarg+2],false,lmp);
       cutghostuser = MAX(cutghostuser,cut);
       if (cut < 0.0)
-        error->all(FLERR,"Invalid cutoff in comm_modify command");
+        error->all(FLERR, iarg+1, "Invalid cutoff {} in comm_modify command", arg[iarg+2]);
       for (i=nlo; i<=nhi; ++i)
         cutusermultiold[i] = cut;
       iarg += 3;
     } else if (strcmp(arg[iarg],"reduce/multi") == 0) {
       if (mode == Comm::SINGLE)
-        error->all(FLERR,"Use reduce/multi in mode multi only");
+        error->all(FLERR, iarg, "Use reduce/multi in mode multi only");
       multi_reduce = 1;
       iarg += 1;
     } else if (strcmp(arg[iarg],"vel") == 0) {
-      if (iarg+2 > narg) error->all(FLERR,"Illegal comm_modify command");
+      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "comm_modify vel", error);
       ghost_velocity = utils::logical(FLERR,arg[iarg+1],false,lmp);
       iarg += 2;
-    } else error->all(FLERR,"Illegal comm_modify command");
+    } else error->all(FLERR, iarg, "Unknown comm_modify keyword: {}", arg[iarg]);
   }
 }
 
@@ -424,6 +433,7 @@ void Comm::set_processors(int narg, char **arg)
     error->all(FLERR,"Specified processors != physical processors");
 
   int iarg = 3;
+  numa_nodes = 2;
   while (iarg < narg) {
     if (strcmp(arg[iarg],"grid") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal processors command");
@@ -518,6 +528,12 @@ void Comm::set_processors(int narg, char **arg)
       outfile = utils::strdup(arg[iarg+1]);
       iarg += 2;
 
+    } else if (strcmp(arg[iarg],"numa_nodes") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal processors command");
+      numa_nodes = utils::inumeric(FLERR,arg[iarg+1],false,lmp);
+      if (numa_nodes < 1) numa_nodes = 2;
+      iarg += 2;
+
     } else error->all(FLERR,"Illegal processors command");
   }
 
@@ -554,7 +570,7 @@ void Comm::set_proc_grid(int outflag)
 
   // create ProcMap class to create 3d grid and map procs to it
 
-  auto pmap = new ProcMap(lmp);
+  auto *pmap = new ProcMap(lmp);
 
   // create 3d grid of processors
   // produces procgrid and coregrid (if relevant)
@@ -569,7 +585,7 @@ void Comm::set_proc_grid(int outflag)
                         otherflag,other_style,other_procgrid,other_coregrid);
 
   } else if (gridflag == NUMA) {
-    pmap->numa_grid(nprocs,user_procgrid,procgrid,coregrid);
+    pmap->numa_grid(numa_nodes,nprocs,user_procgrid,procgrid,coregrid);
 
   } else if (gridflag == CUSTOM) {
     pmap->custom_grid(customfile,nprocs,user_procgrid,procgrid);
@@ -801,103 +817,6 @@ int Comm::coord2proc(double *x, int &igx, int &igy, int &igz)
 }
 
 /* ----------------------------------------------------------------------
-   partition a global regular grid into one brick-shaped sub-grid per proc
-   if grid point is inside my sub-domain I own it,
-     this includes sub-domain lo boundary but excludes hi boundary
-   nx,ny,nz = extent of global grid
-     indices into the global grid range from 0 to N-1 in each dim
-   zfactor = 0.0 if the grid exactly covers the simulation box
-   zfactor > 1.0 if the grid extends beyond the +z boundary by this factor
-     used by 2d slab-mode PPPM
-     this effectively maps proc sub-grids to a smaller subset of the grid
-   nxyz lo/hi = inclusive lo/hi bounds of global grid sub-brick I own
-   if proc owns no grid cells in a dim, then nlo > nhi
-   special case: 2 procs share boundary which a grid point is exactly on
-     2 equality if tests insure a consistent decision as to which proc owns it
-------------------------------------------------------------------------- */
-
-void Comm::partition_grid(int nx, int ny, int nz, double zfactor,
-                          int &nxlo, int &nxhi, int &nylo, int &nyhi,
-                          int &nzlo, int &nzhi)
-{
-  double xfraclo,xfrachi,yfraclo,yfrachi,zfraclo,zfrachi;
-
-  if (layout != LAYOUT_TILED) {
-    xfraclo = xsplit[myloc[0]];
-    xfrachi = xsplit[myloc[0]+1];
-    yfraclo = ysplit[myloc[1]];
-    yfrachi = ysplit[myloc[1]+1];
-    zfraclo = zsplit[myloc[2]];
-    zfrachi = zsplit[myloc[2]+1];
-  } else {
-    xfraclo = mysplit[0][0];
-    xfrachi = mysplit[0][1];
-    yfraclo = mysplit[1][0];
-    yfrachi = mysplit[1][1];
-    zfraclo = mysplit[2][0];
-    zfrachi = mysplit[2][1];
-  }
-
-  nxlo = static_cast<int> (xfraclo * nx);
-  if (1.0*nxlo != xfraclo*nx) nxlo++;
-  nxhi = static_cast<int> (xfrachi * nx);
-  if (1.0*nxhi == xfrachi*nx) nxhi--;
-
-  nylo = static_cast<int> (yfraclo * ny);
-  if (1.0*nylo != yfraclo*ny) nylo++;
-  nyhi = static_cast<int> (yfrachi * ny);
-  if (1.0*nyhi == yfrachi*ny) nyhi--;
-
-  if (zfactor == 0.0) {
-    nzlo = static_cast<int> (zfraclo * nz);
-    if (1.0*nzlo != zfraclo*nz) nzlo++;
-    nzhi = static_cast<int> (zfrachi * nz);
-    if (1.0*nzhi == zfrachi*nz) nzhi--;
-  } else {
-    nzlo = static_cast<int> (zfraclo * nz/zfactor);
-    if (1.0*nzlo != zfraclo*nz) nzlo++;
-    nzhi = static_cast<int> (zfrachi * nz/zfactor);
-    if (1.0*nzhi == zfrachi*nz) nzhi--;
-  }
-
-  // OLD code
-  // could sometimes map grid points slightly outside a proc to the proc
-
-  /*
-  if (layout != LAYOUT_TILED) {
-    nxlo = static_cast<int> (xsplit[myloc[0]] * nx);
-    nxhi = static_cast<int> (xsplit[myloc[0]+1] * nx) - 1;
-
-    nylo = static_cast<int> (ysplit[myloc[1]] * ny);
-    nyhi = static_cast<int> (ysplit[myloc[1]+1] * ny) - 1;
-
-    if (zfactor == 0.0) {
-      nzlo = static_cast<int> (zsplit[myloc[2]] * nz);
-      nzhi = static_cast<int> (zsplit[myloc[2]+1] * nz) - 1;
-    } else {
-      nzlo = static_cast<int> (zsplit[myloc[2]] * nz/zfactor);
-      nzhi = static_cast<int> (zsplit[myloc[2]+1] * nz/zfactor) - 1;
-    }
-
-  } else {
-    nxlo = static_cast<int> (mysplit[0][0] * nx);
-    nxhi = static_cast<int> (mysplit[0][1] * nx) - 1;
-
-    nylo = static_cast<int> (mysplit[1][0] * ny);
-    nyhi = static_cast<int> (mysplit[1][1] * ny) - 1;
-
-    if (zfactor == 0.0) {
-      nzlo = static_cast<int> (mysplit[2][0] * nz);
-      nzhi = static_cast<int> (mysplit[2][1] * nz) - 1;
-    } else {
-      nzlo = static_cast<int> (mysplit[2][0] * nz/zfactor);
-      nzhi = static_cast<int> (mysplit[2][1] * nz/zfactor) - 1;
-    }
-  }
-  */
-}
-
-/* ----------------------------------------------------------------------
    communicate inbuf around full ring of processors with messtag
    nbytes = size of inbuf = n datums * nper bytes
    callback() is invoked to allow caller to process/update each proc's inbuf
@@ -1015,7 +934,7 @@ rendezvous_irregular(int n, char *inbuf, int insize, int inorder, int *procs,
 {
   // irregular comm of inbuf from caller decomp to rendezvous decomp
 
-  auto irregular = new Irregular(lmp);
+  auto *irregular = new Irregular(lmp);
 
   int nrvous;
   if (inorder) nrvous = irregular->create_data_grouped(n,procs);
@@ -1023,10 +942,10 @@ rendezvous_irregular(int n, char *inbuf, int insize, int inorder, int *procs,
 
   // add 1 item to the allocated buffer size, so the returned pointer is not a null pointer
 
-  auto inbuf_rvous = (char *) memory->smalloc((bigint) nrvous*insize+1, "rendezvous:inbuf");
+  auto *inbuf_rvous = (char *) memory->smalloc((bigint) nrvous*insize+1, "rendezvous:inbuf");
   irregular->exchange_data(inbuf,insize,inbuf_rvous);
 
-  bigint irregular1_bytes = irregular->memory_usage();
+  bigint irregular1_bytes = irregular->memory_usage(); // NOLINT
   irregular->destroy_data();
   delete irregular;
 
@@ -1059,7 +978,7 @@ rendezvous_irregular(int n, char *inbuf, int insize, int inorder, int *procs,
   outbuf = (char *) memory->smalloc((bigint) nout*outsize+1, "rendezvous:outbuf");
   irregular->exchange_data(outbuf_rvous,outsize,outbuf);
 
-  bigint irregular2_bytes = irregular->memory_usage();
+  bigint irregular2_bytes = irregular->memory_usage(); // NOLINT
   irregular->destroy_data();
   delete irregular;
 
@@ -1163,7 +1082,7 @@ rendezvous_all2all(int n, char *inbuf, int insize, int inorder, int *procs,
   // all2all comm of inbuf from caller decomp to rendezvous decomp
   // add 1 item to the allocated buffer size, so the returned pointer is not a null pointer
 
-  auto inbuf_rvous = (char *) memory->smalloc((bigint) nrvous*insize+1, "rendezvous:inbuf");
+  auto *inbuf_rvous = (char *) memory->smalloc((bigint) nrvous*insize+1, "rendezvous:inbuf");
   memset(inbuf_rvous,0,(bigint) nrvous*insize*sizeof(char));
 
   MPI_Alltoallv(inbuf_a2a,sendcount,sdispls,MPI_CHAR,

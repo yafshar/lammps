@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -30,7 +30,7 @@ namespace LAMMPS_NS {
 class PairMorseSoft : public PairMorse {
  public:
   PairMorseSoft(class LAMMPS *lmp) :
-      PairMorse(lmp), lambda(nullptr), nlambda(0), shift_range(1.0){};
+      PairMorse(lmp), lambda(nullptr), nlambda(0), shift_range(1.0) {};
   ~PairMorseSoft() override;
   void compute(int, int) override;
 

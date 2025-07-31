@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -34,16 +34,27 @@ class BondBPMSpring : public BondBPM {
   void settings(int, char **) override;
   void write_restart(FILE *) override;
   void read_restart(FILE *) override;
-  void write_data(FILE *) override;
+  void write_restart_settings(FILE *) override;
+  void read_restart_settings(FILE *) override;
   double single(int, double, int, int, double &) override;
+  int pack_forward_comm(int, int *, double *, int, int *) override;
+  void unpack_forward_comm(int, int, double *) override;
+  int pack_reverse_comm(int, int, double *) override;
+  void unpack_reverse_comm(int, int *, double *) override;
 
  protected:
-  double *k, *ecrit, *gamma;
-  int smooth_flag;
+  double *k, *av, *ecrit, *gamma;
+  int smooth_flag, normalize_flag, volume_flag;
+
+  int index_vol, index_vol0, nmax;
+  char *id_fix_property_bond;
+  double *vol_current, *dvol0;
 
   void allocate();
   void store_data();
   double store_bond(int, int, int);
+  int calculate_vol();
+  void update_vol0();
 };
 
 }    // namespace LAMMPS_NS

@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -41,9 +41,9 @@ namespace RANN {
   class Fingerprint {
    public:
     Fingerprint(PairRANN *);
-    virtual ~Fingerprint() {}
+    virtual ~Fingerprint() = default;
 
-    virtual bool parse_values(std::string, std::vector<std::string>) { return false; }
+    virtual bool parse_values(std::string, std::vector<std::string>) { return false; } // NOLINT
     virtual void write_values(FILE *) {}
 
     virtual void init(int *, int) {}
@@ -95,4 +95,4 @@ namespace RANN {
 }    // namespace RANN
 }    // namespace LAMMPS_NS
 
-#endif /* RANN_FINGERPRINT_H_ */
+#endif /* RANN_FINGERPRINT_H */

@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -189,12 +189,12 @@ void PairPeri::compute_dilatation(int ifrom, int ito)
       delx = xtmp - x[j][0];
       dely = ytmp - x[j][1];
       delz = ztmp - x[j][2];
-      if (periodic) domain->minimum_image(delx, dely, delz);
+      if (periodic) domain->minimum_image(FLERR, delx, dely, delz);
       rsq = delx * delx + dely * dely + delz * delz;
       delx0 = xtmp0 - x0[j][0];
       dely0 = ytmp0 - x0[j][1];
       delz0 = ztmp0 - x0[j][2];
-      if (periodic) domain->minimum_image(delx0, dely0, delz0);
+      if (periodic) domain->minimum_image(FLERR, delx0, dely0, delz0);
 
       r = sqrt(rsq);
       dr = r - r0[i][jj];

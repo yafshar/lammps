@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -12,7 +12,7 @@
 ------------------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------------
-   Contributing authors: Ludwig Ahrens-Iwers (TUHH), Shern Tee (UQ), Robert Meißner (TUHH)
+   Contributing authors: Ludwig Ahrens-Iwers (TUHH), Shern Tee (UQ), Robert Meissner (TUHH)
 ------------------------------------------------------------------------- */
 
 #ifndef LMP_ELECTRODE_KSPACE_H
@@ -23,6 +23,11 @@
 namespace LAMMPS_NS {
 class ElectrodeKSpace {
  public:
+  // clang-format off
+  // Cannot use =default here because of broken GCC 8 on RHEL 8
+  virtual ~ElectrodeKSpace() noexcept(false) {} // NOLINT
+  // clang-format on
+
   virtual void compute_vector(double *, int, int, bool) = 0;
   virtual void compute_vector_corr(double *, int, int, bool) = 0;
   virtual void compute_matrix(bigint *, double **, bool) = 0;

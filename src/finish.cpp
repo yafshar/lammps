@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -24,10 +24,9 @@
 #include "memory.h"             // IWYU pragma: keep
 #include "min.h"
 #include "molecule.h"
-#include "neigh_list.h"
-#include "neigh_request.h"
 #include "neighbor.h"           // IWYU pragma: keep
 #include "output.h"
+#include "pair.h"
 #include "thermo.h"
 #include "timer.h"              // IWYU pragma: keep
 #include "universe.h"
@@ -63,7 +62,8 @@ Finish::Finish(LAMMPS *lmp) : Pointers(lmp) {}
 
 void Finish::end(int flag)
 {
-  int i,nneigh,nneighfull;
+  int i;
+  bigint nneigh,nneighfull;
   int histo[10];
   int minflag,prdflag,tadflag,hyperflag;
   int timeflag,fftflag,histoflag,neighflag;
@@ -121,9 +121,9 @@ void Finish::end(int flag)
     MPI_Allreduce(&cpu_loop,&tmp,1,MPI_DOUBLE,MPI_SUM,world);
     cpu_loop = tmp/nprocs;
     if (time_loop > 0.0) cpu_loop = cpu_loop/time_loop*100.0;
+    output->thermo->footer();
 
     if (me == 0) {
-      output->thermo->footer();
       int ntasks = nprocs * nthreads;
       utils::logmesg(lmp,"Loop time of {:.6g} on {} procs for {} steps with {} atoms\n\n",
                      time_loop,ntasks,update->nsteps,atom->natoms);
@@ -140,21 +140,34 @@ void Finish::end(int flag)
             (strcmp(update->unit_style,"real") == 0))) {
         double one_fs = force->femtosecond;
         double t_step = ((double) time_loop) / ((double) update->nsteps);
-        double step_t = 1.0/t_step;
+        double step_t = 1.0 / t_step;
+        double atomstep_s = (double)atom->natoms * step_t;
+        std::string atomstep_u = "atom-step/s";
+        if (atomstep_s > 1000000000.0) {
+          atomstep_u = "Gatom-step/s";
+          atomstep_s /= 1000000000.0;
+        } else if (atomstep_s > 1000000.0) {
+          atomstep_u = "Matom-step/s";
+          atomstep_s /= 1000000.0;
+        } else if (atomstep_s > 1000.0) {
+          atomstep_u = "katom-step/s";
+          atomstep_s /= 1000.0;
+        }
 
         if (strcmp(update->unit_style,"lj") == 0) {
           double tau_day = 24.0*3600.0 / t_step * update->dt / one_fs;
-          utils::logmesg(lmp,"Performance: {:.3f} tau/day, {:.3f} timesteps/s\n",tau_day,step_t);
+          utils::logmesg(lmp, "Performance: {:.3f} tau/day, {:.3f} timesteps/s, {:.3f} {}\n",
+                         tau_day, step_t, atomstep_s, atomstep_u);
         } else if (strcmp(update->unit_style,"electron") == 0) {
           double hrs_fs = t_step / update->dt * one_fs / 3600.0;
           double fs_day = 24.0*3600.0 / t_step * update->dt / one_fs;
-          utils::logmesg(lmp,"Performance: {:.3f} fs/day, {:.3f} hours/fs, "
-                         "{:.3f} timesteps/s\n",fs_day,hrs_fs,step_t);
+          utils::logmesg(lmp,"Performance: {:.3f} fs/day, {:.3f} hours/fs, {:.3f} timesteps/s, "
+                         "{:.3f} {}\n", fs_day, hrs_fs, step_t, atomstep_s, atomstep_u);
         } else {
           double hrs_ns = t_step / update->dt * 1000000.0 * one_fs / 3600.0;
           double ns_day = 24.0*3600.0 / t_step * update->dt / one_fs/1000000.0;
-          utils::logmesg(lmp,"Performance: {:.3f} ns/day, {:.3f} hours/ns, "
-                         "{:.3f} timesteps/s\n",ns_day,hrs_ns,step_t);
+          utils::logmesg(lmp,"Performance: {:.3f} ns/day, {:.3f} hours/ns, {:.3f} timesteps/s, "
+                         "{:.3f} {}\n", ns_day, hrs_ns, step_t, atomstep_s, atomstep_u);
         }
       }
 
@@ -213,6 +226,10 @@ void Finish::end(int flag)
       utils::logmesg(lmp,mesg);
     }
   }
+
+  // pair_style timing stats if provided
+
+  if (force->pair) force->pair->finish();
 
   // PRD stats
 
@@ -341,7 +358,7 @@ void Finish::end(int flag)
   }
 
 #ifdef LMP_OPENMP
-  FixOMP *fixomp = dynamic_cast<FixOMP *>( modify->get_fix_by_id("package_omp"));
+  FixOMP *fixomp = dynamic_cast<FixOMP *>(modify->get_fix_by_id("package_omp"));
 
   // print thread breakdown only with full timer detail
 
@@ -424,7 +441,7 @@ void Finish::end(int flag)
 
     double fraction,flop3,flop1;
     if (nsteps) {
-      if (time_kspace) fraction = time3d/time_kspace*100.0;
+      if (time_kspace != 0.0) fraction = time3d/time_kspace*100.0;
       else fraction = 0.0;
       flop3 = nfft*nflops/1.0e9/(time3d/nsteps);
       flop1 = nfft*nflops/1.0e9/(time1d/nsteps);

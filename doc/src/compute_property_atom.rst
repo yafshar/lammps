@@ -6,7 +6,7 @@ compute property/atom command
 Syntax
 """"""
 
-.. parsed-literal::
+.. code-block:: LAMMPS
 
    compute ID group-ID property/atom input1 input2 ...
 
@@ -23,16 +23,19 @@ Syntax
                              spx, spy, spz, sp, fmx, fmy, fmz,
                              nbonds,
                              radius, diameter, omegax, omegay, omegaz,
+                             temperature, heatflow,
                              angmomx, angmomy, angmomz,
-                             shapex,shapey, shapez,
+                             shapex, shapey, shapez,
                              quatw, quati, quatj, quatk, tqx, tqy, tqz,
                              end1x, end1y, end1z, end2x, end2y, end2z,
                              corner1x, corner1y, corner1z,
                              corner2x, corner2y, corner2z,
                              corner3x, corner3y, corner3z,
                              i_name, d_name, i2_name[I], d2_name[I],
-                             vfrac, s0, spin, eradius, ervel, erforce,
+                             vfrac, s0, espin, eradius, ervel, erforce,
                              rho, drho, e, de, cv, buckling,
+                             apip_lambda, apip_lambda_input, apip_e_fast,
+                             apip_e_precise
 
   .. parsed-literal::
 
@@ -56,6 +59,8 @@ Syntax
            *nbonds* = number of bonds assigned to an atom
            *radius,diameter* = radius,diameter of spherical particle
            *omegax,omegay,omegaz* = angular velocity of spherical particle
+           *temperature* = internal temperature of spherical particle
+           *heatflow* = internal heat flow of spherical particle
            *angmomx,angmomy,angmomz* = angular momentum of aspherical particle
            *shapex,shapey,shapez* = 3 diameters of aspherical particle
            *quatw,quati,quatj,quatk* = quaternion components for aspherical or body particles
@@ -69,6 +74,13 @@ Syntax
 
   .. parsed-literal::
 
+           APIP package per-atom properties:
+           *apip_lambda* = switching parameter
+           *apip_lambda_input* = input used to calculate the switching parameter
+           *apip_e_fast,apip_e_precise* = potential energies mixed by the adaptive-precision potential
+
+  .. parsed-literal::
+
            PERI package per-atom properties:
            vfrac = volume fraction
            s0 = max stretch of any bond a particle is part of
@@ -76,7 +88,7 @@ Syntax
   .. parsed-literal::
 
            EFF and AWPMD package per-atom properties:
-           spin = electron spin
+           espin = electron spin
            eradius = electron radius
            ervel = electron radial velocity
            erforce = electron radial force
@@ -89,11 +101,6 @@ Syntax
            e = energy
            de = change in thermal energy
            cv = heat capacity
-
-  .. parsed-literal::
-
-           MESONT package per-atom properties:
-           buckling = buckling flag used in mesoscopic simulation of nanotubes
 
 Examples
 """"""""
@@ -127,15 +134,15 @@ LAMMPS.
 The values are stored in a per-atom vector or array as discussed
 below.  Zeroes are stored for atoms not in the specified group or for
 quantities that are not defined for a particular particle in the group
-(e.g. *shapex* if the particle is not an ellipsoid).
+(e.g., *shapex* if the particle is not an ellipsoid).
 
 Attributes *i_name*, *d_name*, *i2_name*, *d2_name* refer to custom
 per-atom integer and floating-point vectors or arrays that have been
 added via the :doc:`fix property/atom <fix_property_atom>` command.
 When that command is used specific names are given to each attribute
-which are the "name" portion of these attributes.  For arrays *i2_name*
-and *d2_name*, the column of the array must also be included following
-the name in brackets: e.g. d2_xyz[2], i2_mySpin[3].
+which are the "name" portion of these attributes.  For arrays
+*i2_name* and *d2_name*, the column of the array must also be included
+following the name in brackets (e.g., d2_xyz[2] or i2_mySpin[3]).
 
 The additional quantities only accessible via this command, and not
 directly via the :doc:`dump custom <dump>` command, are as follows.
@@ -144,28 +151,48 @@ directly via the :doc:`dump custom <dump>` command, are as follows.
 number of explicit bonds assigned to an atom.  Note that if the
 :doc:`newton bond <newton>` command is set to *on*\ , which is the
 default, then every bond in the system is assigned to only one of the
-two atoms in the bond.  Thus a bond between atoms I,J may be tallied
-for either atom I or atom J.  If :doc:`newton bond off <newton>` is
-set, it will be tallied with both atom I and atom J.
+two atoms in the bond.  Thus a bond between atoms :math:`I` and :math:`J` may
+be tallied for either atom :math:`I` or atom :math:`J`.
+If :doc:`newton bond off <newton>` is set, it will be tallied with both atom
+:math:`I` and atom :math:`J`.
 
-*Shapex*, *shapey*, and *shapez* are defined for ellipsoidal particles
-and define the 3d shape of each particle.
+The quantities *shapex*, *shapey*, and *shapez* are defined for ellipsoidal
+particles and define the 3d shape of each particle.
 
-*Quatw*, *quati*, *quatj*, and *quatk* are defined for ellipsoidal
-particles and body particles and store the 4-vector quaternion
+The quantities *quatw*, *quati*, *quatj*, and *quatk* are defined for
+ellipsoidal particles and body particles and store the 4-vector quaternion
 representing the orientation of each particle.  See the :doc:`set <set>`
 command for an explanation of the quaternion vector.
 
-*End1x*, *end1y*, *end1z*, *end2x*, *end2y*, *end2z*, are
-defined for line segment particles and define the end points of each
-line segment.
+*End1x*, *end1y*, *end1z*, *end2x*, *end2y*, *end2z*, are defined for line
+segment particles and define the end points of each line segment.
 
 *Corner1x*, *corner1y*, *corner1z*, *corner2x*, *corner2y*,
 *corner2z*, *corner3x*, *corner3y*, *corner3z*, are defined for
 triangular particles and define the corner points of each triangle.
 
+The accessible quantities from the :doc:`APIP package <Howto_apip>` are
+explained in the doc pages of this package in detail.
+In short: *apip_lambda* is the switching parameter :math:`\lambda\in[0,1]`,
+that is calculated from *apip_lambda_input* and that mixes the energies
+of a fast (*apip_e_fast*) and a precise (*apip_e_precise*) potential
+into an adaptive-precision energy.
+
+.. note::
+
+   The energy according to the fast and the precise potential are only
+   computed for the subset of atoms, for which it is required, i.e.,
+   for an atom :math:`i` with :math:`\lambda_i=1` one does not need
+   :math:`E_i^\text{precise}` and with :math:`\lambda_i=0` one does
+   not need :math:`E_i^\text{fast}`.
+
+
 In addition, the various per-atom quantities listed above for specific
 packages are only accessible by this command.
+
+.. versionchanged:: 15Sep2022
+
+  The *espin* property was previously called *spin*.
 
 Output info
 """""""""""
@@ -179,12 +206,12 @@ per-atom values from a compute as input.  See the :doc:`Howto output
 <Howto_output>` page for an overview of LAMMPS output options.
 
 The vector or array values will be in whatever :doc:`units <units>` the
-corresponding attribute is in, e.g. velocity units for vx, charge
-units for q, etc.
+corresponding attribute is in (e.g., velocity units for *vx*, charge
+units for *q*).
 
-For the spin quantities, sp is in the units of the Bohr magneton, spx,
-spy, and spz are unitless quantities, and fmx, fmy and fmz are given
-in rad/THz.
+For the spin quantities, *sp* is in the units of the Bohr magneton;
+*spx*, *spy*, and *spz* are unitless quantities; and *fmx*, *fmy*, and *fmz*
+are given in rad/THz.
 
 Restrictions
 """"""""""""
@@ -194,8 +221,8 @@ Related commands
 """"""""""""""""
 
 :doc:`dump custom <dump>`, :doc:`compute reduce <compute_reduce>`,
-:doc::doc:`fix ave/atom <fix_ave_atom>`, :doc:`fix ave/chunk
-:doc:<fix_ave_chunk>`, `fix property/atom <fix_property_atom>`
+:doc:`fix ave/atom <fix_ave_atom>`, :doc:`fix ave/chunk <fix_ave_chunk>`,
+:doc:`fix property/atom <fix_property_atom>`
 
 Default
 """""""

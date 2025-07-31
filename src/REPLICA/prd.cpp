@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -60,7 +60,7 @@ void PRD::command(int narg, char **arg)
   // error checks
 
   if (domain->box_exist == 0)
-    error->all(FLERR,"PRD command before simulation box is defined");
+    error->all(FLERR,"PRD command before simulation box is defined" + utils::errorurl(33));
   if (universe->nworlds != universe->nprocs &&
       atom->map_style == Atom::MAP_NONE)
     error->all(FLERR,"Cannot use PRD with multi-processor replicas "
@@ -167,7 +167,7 @@ void PRD::command(int narg, char **arg)
 
   // create FixEventPRD class to store event and pre-quench states
 
-  fix_event = dynamic_cast<FixEventPRD *>( modify->add_fix("prd_event all EVENT/PRD"));
+  fix_event = dynamic_cast<FixEventPRD *>(modify->add_fix("prd_event all EVENT/PRD"));
 
   // create Finish for timing output
 
@@ -229,10 +229,10 @@ void PRD::command(int narg, char **arg)
 
   // cannot use PRD with time-dependent fixes or regions
 
-  for (auto ifix : modify->get_fix_list())
+  for (const auto &ifix : modify->get_fix_list())
     if (ifix->time_depend) error->all(FLERR,"Cannot use PRD with a time-dependent fix defined");
 
-  for (auto reg : domain->get_region_list())
+  for (const auto &reg : domain->get_region_list())
     if (reg->dynamic_check())
       error->all(FLERR,"Cannot use PRD with a time-dependent region defined");
 
@@ -252,7 +252,7 @@ void PRD::command(int narg, char **arg)
 
   // store hot state and quenched event for replica 0
   // use share_event() to copy that info to all replicas
-  // this insures all start from same place
+  // this ensures all start from same place
 
   // need this line if quench() does only setup_minimal()
   // update->minimize->setup();
@@ -417,8 +417,8 @@ void PRD::command(int narg, char **arg)
   if (me_universe == 0) {
     auto mesg = fmt::format("Loop time of {} on {} procs for {} steps with {} atoms\n",
                             timer->get_wall(Timer::TOTAL), nprocs_universe, nsteps,atom->natoms);
-    if (universe->uscreen) fmt::print(universe->uscreen, mesg);
-    if (universe->ulogfile) fmt::print(universe->ulogfile, mesg);
+    if (universe->uscreen) utils::print(universe->uscreen, mesg);
+    if (universe->ulogfile) utils::print(universe->ulogfile, mesg);
   }
 
   if (me == 0) utils::logmesg(lmp,"\nPRD done\n");
@@ -692,7 +692,7 @@ void PRD::share_event(int ireplica, int flag, int decrement)
   // dump snapshot of quenched coords, only on replica 0
   // must reneighbor and compute forces before dumping
   // since replica 0 possibly has new state from another replica
-  // addstep_compute_all insures eng/virial are calculated if needed
+  // addstep_compute_all ensures eng/virial are calculated if needed
 
   if (output->ndump && universe->iworld == 0) {
     timer->barrier_start();
@@ -725,8 +725,8 @@ void PRD::log_event()
                             fix_event->event_number, fix_event->correlated_event,
                             fix_event->ncoincident, fix_event->replica_number);
 
-    if (universe->uscreen) fmt::print(universe->uscreen, mesg);
-    if (universe->ulogfile) fmt::print(universe->ulogfile, mesg);
+    if (universe->uscreen) utils::print(universe->uscreen, mesg);
+    if (universe->ulogfile) utils::print(universe->ulogfile, mesg);
   }
 }
 
@@ -770,9 +770,9 @@ void PRD::replicate(int ireplica)
     int nlocal = atom->nlocal;
 
     if (universe->iworld == ireplica) {
-      memcpy(tagall,tag,nlocal*sizeof(tagint));
-      memcpy(xall[0],x[0],3*nlocal*sizeof(double));
-      memcpy(imageall,image,nlocal*sizeof(imageint));
+      memcpy(tagall,tag,(nlocal*sizeof(tagint))&MEMCPYMASK);
+      memcpy(xall[0],x[0],(sizeof(double)*3*nlocal)&MEMCPYMASK);
+      memcpy(imageall,image,(nlocal*sizeof(imageint))&MEMCPYMASK);
     }
 
     MPI_Bcast(tagall,natoms,MPI_LMP_TAGINT,ireplica,comm_replica);

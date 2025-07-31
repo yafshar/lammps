@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -37,24 +37,18 @@ namespace RANN {
 
   class Activation_linear : public Activation {
    public:
-    Activation_linear(class PairRANN *);
-    double activation_function(double) override;
-    double dactivation_function(double) override;
-    double ddactivation_function(double) override;
+    Activation_linear(PairRANN *_pair) : Activation(_pair)
+    {
+      empty = false;
+      style = "linear";
+    }
+
+    double activation_function(double A) override { return A; }
+    double dactivation_function(double) override { return 1.0; }
+    double ddactivation_function(double) override { return 0.0; }
   };
 
-  Activation_linear::Activation_linear(PairRANN *_pair) : Activation(_pair)
-  {
-    empty = false;
-    style = "linear";
-  }
-
-  double Activation_linear::activation_function(double A) { return A; }
-
-  double Activation_linear::dactivation_function(double) { return 1.0; }
-
-  double Activation_linear::ddactivation_function(double) { return 0.0; }
 }    // namespace RANN
 }    // namespace LAMMPS_NS
 
-#endif /* ACTIVATION_LINEAR_H_ */
+#endif /* ACTIVATION_LINEAR_H */

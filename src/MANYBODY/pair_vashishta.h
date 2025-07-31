@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -57,9 +57,9 @@ class PairVashishta : public Pair {
   void allocate();
   void read_file(char *);
   virtual void setup_params();
-  void twobody(Param *, double, double &, int, double &);
-  void threebody(Param *, Param *, Param *, double, double, double *, double *, double *, double *,
-                 int, double &);
+  void twobody(const Param *, double, double &, int, double &);
+  void threebody(const Param *, const Param *, const Param *, double, double, double *, double *,
+                 double *, double *, int, double &);
 };
 
 }    // namespace LAMMPS_NS

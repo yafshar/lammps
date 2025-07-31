@@ -21,9 +21,9 @@ protected:
     LAMMPS *lmp;
     Input_commands()
     {
-        const char *args[] = {"LAMMPS_test"};
+        const char *args[] = {"LAMMPS_test", nullptr};
         char **argv        = (char **)args;
-        int argc           = sizeof(args) / sizeof(char *);
+        int argc           = 1;
 
         int flag;
         MPI_Initialized(&flag);
@@ -33,13 +33,11 @@ protected:
 
     void SetUp() override
     {
-        const char *args[] = {"LAMMPS_test", "-log", "none", "-echo", "screen", "-nocite",
-                              "-var",        "zpos", "1.5",  "-var",  "x",      "2"};
-        char **argv        = (char **)args;
-        int argc           = sizeof(args) / sizeof(char *);
+        LAMMPS::argv args = {"LAMMPS_test", "-log", "none", "-echo", "screen", "-nocite",
+                             "-var",        "zpos", "1.5",  "-var",  "x",      "2"};
 
         ::testing::internal::CaptureStdout();
-        lmp                = new LAMMPS(argc, argv, MPI_COMM_WORLD);
+        lmp                = new LAMMPS(args, MPI_COMM_WORLD);
         std::string output = ::testing::internal::GetCapturedStdout();
         EXPECT_STREQ(output.substr(0, 8).c_str(), "LAMMPS (");
     }

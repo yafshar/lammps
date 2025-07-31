@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -33,14 +33,13 @@
 
 using namespace LAMMPS_NS;
 
-#define MAXLINE 1024
-
 /* ---------------------------------------------------------------------- */
 
 PairEAM::PairEAM(LAMMPS *lmp) : Pair(lmp)
 {
   restartinfo = 0;
   manybody_flag = 1;
+  atomic_energy_enable = 1;
   embedstep = -1;
   unit_convert_flag = utils::get_supported_conversions(utils::ENERGY);
 
@@ -150,6 +149,8 @@ void PairEAM::compute(int eflag, int vflag)
   evdwl = 0.0;
   ev_init(eflag,vflag);
 
+  int beyond_rhomax = 0;
+
   // grow energy and fp arrays if necessary
   // need to be atom->nmax in length
 
@@ -205,7 +206,7 @@ void PairEAM::compute(int eflag, int vflag)
       if (rsq < cutforcesq) {
         jtype = type[j];
         p = sqrt(rsq)*rdr + 1.0;
-        m = static_cast<int> (p);
+        m = static_cast<int>(p);
         m = MIN(m,nr-1);
         p -= m;
         p = MIN(p,1.0);
@@ -231,7 +232,7 @@ void PairEAM::compute(int eflag, int vflag)
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
     p = rho[i]*rdrho + 1.0;
-    m = static_cast<int> (p);
+    m = static_cast<int>(p);
     m = MAX(1,MIN(m,nrho-1));
     p -= m;
     p = MIN(p,1.0);
@@ -239,7 +240,10 @@ void PairEAM::compute(int eflag, int vflag)
     fp[i] = (coeff[0]*p + coeff[1])*p + coeff[2];
     if (eflag) {
       phi = ((coeff[3]*p + coeff[4])*p + coeff[5])*p + coeff[6];
-      if (rho[i] > rhomax) phi += fp[i] * (rho[i]-rhomax);
+      if (rho[i] > rhomax) {
+        phi += fp[i] * (rho[i]-rhomax);
+        beyond_rhomax = 1;
+      }
       phi *= scale[type[i]][type[i]];
       if (eflag_global) eng_vdwl += phi;
       if (eflag_atom) eatom[i] += phi;
@@ -279,7 +283,7 @@ void PairEAM::compute(int eflag, int vflag)
         jtype = type[j];
         r = sqrt(rsq);
         p = r*rdr + 1.0;
-        m = static_cast<int> (p);
+        m = static_cast<int>(p);
         m = MIN(m,nr-1);
         p -= m;
         p = MIN(p,1.0);
@@ -324,7 +328,81 @@ void PairEAM::compute(int eflag, int vflag)
     }
   }
 
+  if (eflag && (!exceeded_rhomax)) {
+    MPI_Allreduce(&beyond_rhomax, &exceeded_rhomax, 1, MPI_INT, MPI_SUM, world);
+    if (exceeded_rhomax) {
+      if (comm->me == 0)
+        error->warning(FLERR,
+                       "A per-atom density exceeded rhomax of EAM potential table - "
+                       "a linear extrapolation to the energy was made");
+    }
+  }
+
   if (vflag_fdotr) virial_fdotr_compute();
+}
+
+/*********************************************************************
+ * Calculates the atomic energy of atom i
+ *********************************************************************/
+double PairEAM::compute_atomic_energy(int i, NeighList *neighborList)
+{
+  double p;
+  int m;
+  double* coeff;
+  double Ei = 0.0;
+  double rhoi = 0.0;
+
+  double xi = atom->x[i][0];
+  double yi = atom->x[i][1];
+  double zi = atom->x[i][2];
+  int itype = atom->type[i];
+
+  // loop over all neighbors of the selected atom.
+
+  int* jlist = neighborList->firstneigh[i];
+  int jnum = neighborList->numneigh[i];
+
+  for(int jj = 0; jj < jnum; jj++) {
+    int j = jlist[jj];
+
+    double delx = xi - atom->x[j][0];
+    double dely = yi - atom->x[j][1];
+    double delz = zi - atom->x[j][2];
+    double rsq = delx*delx + dely*dely + delz*delz;
+    if(rsq >= cutforcesq) continue;
+
+    int jtype = atom->type[j];
+    double r = sqrt(rsq);
+
+    p = r * rdr + 1.0;
+    m = static_cast<int>(p);
+    m = MIN(m, nr - 1);
+    p -= m;
+    p = MIN(p, 1.0);
+
+    // sum pair energy ij
+    // divide by 2 to avoid double counting energy
+
+    coeff = z2r_spline[type2z2r[jtype][itype]][m];
+    double z2 = ((coeff[3]*p + coeff[4])*p + coeff[5])*p + coeff[6];
+    Ei += 0.5*z2 / r;
+
+    // sum rho_ij to rho_i
+    coeff = rhor_spline[type2rhor[jtype][itype]][m];
+    rhoi += ((coeff[3]*p + coeff[4])*p + coeff[5])*p + coeff[6];
+  }
+
+  // compute the change in embedding energy of atom i.
+
+  p = rhoi * rdrho + 1.0;
+  m = static_cast<int>(p);
+  m = MAX(1, MIN(m, nrho - 1));
+  p -= m;
+  p = MIN(p, 1.0);
+  coeff = frho_spline[type2frho[itype]][m];
+  Ei += ((coeff[3]*p + coeff[4])*p + coeff[5])*p + coeff[6];
+
+  return Ei;
 }
 
 /* ----------------------------------------------------------------------
@@ -371,7 +449,7 @@ void PairEAM::coeff(int narg, char **arg)
 {
   if (!allocated) allocate();
 
-  if (narg != 3) error->all(FLERR,"Incorrect args for pair coefficients");
+  if (narg != 3) error->all(FLERR,"Incorrect args for pair coefficients" + utils::errorurl(21));
 
   // parse pair of atom types
 
@@ -410,7 +488,7 @@ void PairEAM::coeff(int narg, char **arg)
     }
   }
 
-  if (count == 0) error->all(FLERR,"Incorrect args for pair coefficients");
+  if (count == 0) error->all(FLERR,"Incorrect args for pair coefficients" + utils::errorurl(21));
 }
 
 /* ----------------------------------------------------------------------
@@ -426,6 +504,8 @@ void PairEAM::init_style()
 
   neighbor->add_request(this);
   embedstep = -1;
+
+  exceeded_rhomax = 0;
 }
 
 /* ----------------------------------------------------------------------
@@ -556,10 +636,9 @@ void PairEAM::file2array()
   }
 
   // set nr,nrho from cutoff and spacings
-  // 0.5 is for round-off in divide
 
-  nr = static_cast<int> (rmax/dr + 0.5);
-  nrho = static_cast<int> (rhomax/drho + 0.5);
+  nr = std::lround(rmax/dr);
+  nrho = std::lround(rhomax/drho);
 
   // ------------------------------------------------------------------
   // setup frho arrays
@@ -582,7 +661,7 @@ void PairEAM::file2array()
     for (m = 1; m <= nrho; m++) {
       r = (m-1)*drho;
       p = r/file->drho + 1.0;
-      k = static_cast<int> (p);
+      k = static_cast<int>(p);
       k = MIN(k,file->nrho-2);
       k = MAX(k,2);
       p -= k;
@@ -629,7 +708,7 @@ void PairEAM::file2array()
     for (m = 1; m <= nr; m++) {
       r = (m-1)*dr;
       p = r/file->dr + 1.0;
-      k = static_cast<int> (p);
+      k = static_cast<int>(p);
       k = MIN(k,file->nr-2);
       k = MAX(k,2);
       p -= k;
@@ -679,7 +758,7 @@ void PairEAM::file2array()
         r = (m-1)*dr;
 
         p = r/ifile->dr + 1.0;
-        k = static_cast<int> (p);
+        k = static_cast<int>(p);
         k = MIN(k,ifile->nr-2);
         k = MAX(k,2);
         p -= k;
@@ -692,7 +771,7 @@ void PairEAM::file2array()
           cof3*ifile->zr[k+1] + cof4*ifile->zr[k+2];
 
         p = r/jfile->dr + 1.0;
-        k = static_cast<int> (p);
+        k = static_cast<int>(p);
         k = MIN(k,jfile->nr-2);
         k = MAX(k,2);
         p -= k;
@@ -816,7 +895,7 @@ double PairEAM::single(int i, int j, int itype, int jtype,
 
   if (numforce[i] > 0) {
     p = rho[i]*rdrho + 1.0;
-    m = static_cast<int> (p);
+    m = static_cast<int>(p);
     m = MAX(1,MIN(m,nrho-1));
     p -= m;
     p = MIN(p,1.0);
@@ -828,7 +907,7 @@ double PairEAM::single(int i, int j, int itype, int jtype,
 
   r = sqrt(rsq);
   p = r*rdr + 1.0;
-  m = static_cast<int> (p);
+  m = static_cast<int>(p);
   m = MIN(m,nr-1);
   p -= m;
   p = MIN(p,1.0);
@@ -852,8 +931,7 @@ double PairEAM::single(int i, int j, int itype, int jtype,
 
 /* ---------------------------------------------------------------------- */
 
-int PairEAM::pack_forward_comm(int n, int *list, double *buf,
-                               int /*pbc_flag*/, int * /*pbc*/)
+int PairEAM::pack_forward_comm(int n, int *list, double *buf, int /*pbc_flag*/, int * /*pbc*/)
 {
   int i,j,m;
 
@@ -933,5 +1011,28 @@ void *PairEAM::extract(const char *str, int &dim)
 {
   dim = 2;
   if (strcmp(str,"scale") == 0) return (void *) scale;
+
+  return nullptr;
+}
+
+/* ----------------------------------------------------------------------
+   peratom requests from FixPair
+   return ptr to requested data
+   also return ncol = # of quantites per atom
+     0 = per-atom vector
+     1 or more = # of columns in per-atom array
+   return NULL if str is not recognized
+---------------------------------------------------------------------- */
+
+void *PairEAM::extract_peratom(const char *str, int &ncol)
+{
+  if (strcmp(str,"rho") == 0) {
+    ncol = 0;
+    return (void *) rho;
+  } else if (strcmp(str,"fp") == 0) {
+    ncol = 0;
+    return (void *) fp;
+  }
+
   return nullptr;
 }

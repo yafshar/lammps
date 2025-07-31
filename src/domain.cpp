@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -28,6 +28,7 @@
 #include "force.h"
 #include "kspace.h"
 #include "lattice.h"
+#include "math_extra.h"
 #include "memory.h"
 #include "modify.h"
 #include "molecule.h"
@@ -41,11 +42,11 @@
 #include <cmath>
 
 using namespace LAMMPS_NS;
+using namespace MathExtra;
 
-#define BIG   1.0e20
-#define SMALL 1.0e-4
-#define DELTAREGION 4
-#define BONDSTRETCH 1.1
+static constexpr double BIG =   1.0e20;
+static constexpr double SMALL = 1.0e-4;
+static constexpr double BONDSTRETCH = 1.1;
 
 /* ----------------------------------------------------------------------
    one instance per region style in style_region.h
@@ -81,8 +82,7 @@ Domain::Domain(LAMMPS *lmp) : Pointers(lmp)
   minylo = minyhi = 0.0;
   minzlo = minzhi = 0.0;
 
-  triclinic = 0;
-  tiltsmall = 1;
+  triclinic = triclinic_general = 0;
 
   boxlo[0] = boxlo[1] = boxlo[2] = -0.5;
   boxhi[0] = boxhi[1] = boxhi[2] = 0.5;
@@ -100,7 +100,7 @@ Domain::Domain(LAMMPS *lmp) : Pointers(lmp)
   boxhi_lamda[0] = boxhi_lamda[1] = boxhi_lamda[2] = 1.0;
 
   lattice = nullptr;
-  auto args = new char*[2];
+  auto *args = new char*[2];
   args[0] = (char *) "none";
   args[1] = (char *) "1.0";
   set_lattice(2,args);
@@ -125,7 +125,7 @@ Domain::~Domain()
 {
   if (copymode) return;
 
-  for (auto reg : regions) delete reg;
+  for (const auto &reg : regions) delete reg;
   regions.clear();
   delete lattice;
   delete region_map;
@@ -182,7 +182,7 @@ void Domain::init()
   for (const auto &fix : fixes)
     if (utils::strmatch(fix->style,"^deform")) {
       deform_flag = 1;
-      if ((dynamic_cast<FixDeform *>( fix))->remapflag == Domain::V_REMAP) {
+      if ((dynamic_cast<FixDeform *>(fix))->remapflag == Domain::V_REMAP) {
         deform_vremap = 1;
         deform_groupbit = fix->groupbit;
       }
@@ -190,7 +190,7 @@ void Domain::init()
 
   // region inits
 
-  for (auto reg : regions) reg->init();
+  for (const auto &reg : regions) reg->init();
 }
 
 /* ----------------------------------------------------------------------
@@ -209,19 +209,16 @@ void Domain::set_initial_box(int expandflag)
   if (boxlo[0] >= boxhi[0] || boxlo[1] >= boxhi[1] || boxlo[2] >= boxhi[2])
     error->one(FLERR,"Box bounds are invalid or missing");
 
-  if (domain->dimension == 2 && (xz != 0.0 || yz != 0.0))
+  if (dimension == 2 && (xz != 0.0 || yz != 0.0))
     error->all(FLERR,"Cannot skew triclinic box in z for 2d simulation");
 
-  // error check or warning on triclinic tilt factors
+  // check on triclinic tilt factors
 
   if (triclinic) {
-    if ((fabs(xy/(boxhi[0]-boxlo[0])) > 0.5 && xperiodic) ||
-        (fabs(xz/(boxhi[0]-boxlo[0])) > 0.5 && xperiodic) ||
-        (fabs(yz/(boxhi[1]-boxlo[1])) > 0.5 && yperiodic)) {
-      if (tiltsmall)
-        error->all(FLERR,"Triclinic box skew is too large");
-      else if (comm->me == 0)
-        error->warning(FLERR,"Triclinic box skew is large");
+    if ((fabs(xy/(boxhi[1]-boxlo[1])) > 0.5 && yperiodic) ||
+        ((fabs(xz)+fabs(yz))/(boxhi[2]-boxlo[2]) > 0.5 && zperiodic)) {
+      if (comm->me == 0)
+        error->warning(FLERR,"Triclinic box skew is large. LAMMPS will run inefficiently.");
     }
   }
 
@@ -292,6 +289,30 @@ void Domain::set_global_box()
     boxhi_bound[1] = MAX(boxhi[1],boxhi[1]+yz);
     boxhi_bound[2] = boxhi[2];
   }
+
+  // update general triclinic box if defined
+  // reset general tri ABC edge vectors from restricted tri box
+
+  if (triclinic_general) {
+    double aprime[3],bprime[3],cprime[3];
+
+    // A'B'C' = edge vectors of restricted triclinic box
+
+    aprime[0] = boxhi[0] - boxlo[0];
+    aprime[1] = aprime[2] = 0.0;
+    bprime[0] = xy;
+    bprime[1] = boxhi[1] - boxlo[1];
+    bprime[2] = 0.0;
+    cprime[0] = xz;
+    cprime[1] = yz;
+    cprime[2] = boxhi[2] - boxlo[2];
+
+    // transform restricted A'B'C' to general triclinic ABC
+
+    MathExtra::matvec(rotate_r2g,aprime,avec);
+    MathExtra::matvec(rotate_r2g,bprime,bvec);
+    MathExtra::matvec(rotate_r2g,cprime,cvec);
+  }
 }
 
 /* ----------------------------------------------------------------------
@@ -333,7 +354,7 @@ void Domain::set_lamda_box()
    assumes global box is defined and proc assignment has been made
    uses comm->xyz_split or comm->mysplit
      to define subbox boundaries in consistent manner
-   insure subhi[max] = boxhi
+   ensure subhi[max] = boxhi
 ------------------------------------------------------------------------- */
 
 void Domain::set_local_box()
@@ -521,6 +542,220 @@ void Domain::reset_box()
 }
 
 /* ----------------------------------------------------------------------
+   define and store a general triclinic simulation box
+   3 edge vectors of box = avec/bvec/cvec caller
+   origin of edge vectors = origin_caller = lower left corner of box
+   create mapping to restricted triclinic box
+   set boxlo[3], boxhi[3] and 3 tilt factors
+   create rotation matrices for general <--> restricted transformations
+------------------------------------------------------------------------- */
+
+void Domain::define_general_triclinic(double *avec_caller, double *bvec_caller,
+                                      double *cvec_caller, double *origin_caller)
+{
+  if (triclinic || triclinic_general)
+    error->all(FLERR,"General triclinic box edge vectors are already set");
+
+  triclinic = triclinic_general = 1;
+
+  avec[0] = avec_caller[0];
+  avec[1] = avec_caller[1];
+  avec[2] = avec_caller[2];
+
+  bvec[0] = bvec_caller[0];
+  bvec[1] = bvec_caller[1];
+  bvec[2] = bvec_caller[2];
+
+  cvec[0] = cvec_caller[0];
+  cvec[1] = cvec_caller[1];
+  cvec[2] = cvec_caller[2];
+
+  // error check on cvec for 2d systems
+
+  if (dimension == 2 && (cvec[0] != 0.0 || cvec[1] != 0.0))
+    error->all(FLERR,"General triclinic box edge vector C invalid for 2d system");
+
+  // rotate_g2r = rotation matrix from general to restricted triclnic
+  // rotate_r2g = rotation matrix from restricted to general triclnic
+
+  double aprime[3],bprime[3],cprime[3];
+  general_to_restricted_rotation(avec,bvec,cvec,rotate_g2r,aprime,bprime,cprime);
+  MathExtra::transpose3(rotate_g2r,rotate_r2g);
+
+  // set restricted triclinic boxlo, boxhi, and tilt factors
+
+  boxlo[0] = origin_caller[0];
+  boxlo[1] = origin_caller[1];
+  boxlo[2] = origin_caller[2];
+
+  boxhi[0] = boxlo[0] + aprime[0];
+  boxhi[1] = boxlo[1] + bprime[1];
+  boxhi[2] = boxlo[2] + cprime[2];
+
+  xy = bprime[0];
+  xz = cprime[0];
+  yz = cprime[1];
+}
+
+/* ----------------------------------------------------------------------
+   compute rotation matrix to transform from general to restricted triclinic
+   ABC = 3 general triclinic edge vectors
+   rotmat = rotation matrix
+   A`B`C` = 3 restricited triclinic edge vectors
+------------------------------------------------------------------------- */
+
+void Domain::general_to_restricted_rotation(double *a, double *b, double *c,
+                                            double rotmat[3][3],
+                                            double *aprime, double *bprime, double *cprime)
+{
+  // error checks
+  // A,B,C cannot be co-planar
+  // A x B must point in C direction (right-handed)
+
+  double abcross[3];
+  MathExtra::cross3(a,b,abcross);
+  double dot = MathExtra::dot3(abcross,c);
+  if (dot == 0.0)
+    error->all(FLERR,"General triclinic edge vectors are co-planar");
+  if (dot < 0.0)
+    error->all(FLERR,"General triclinic edge vectors must be right-handed");
+
+  // quat1 = convert A into A' along +x-axis
+  // rot1 = unit vector to rotate A around
+  // theta1 = angle of rotation calculated from
+  //   A dot xunit = Ax = |A| cos(theta1)
+
+  double rot1[3],quat1[4];
+  double xaxis[3] = {1.0, 0.0, 0.0};
+
+  double alen = MathExtra::len3(a);
+  MathExtra::cross3(a,xaxis,rot1);
+  MathExtra::norm3(rot1);
+  double theta1 = acos(a[0]/alen);
+  MathExtra::axisangle_to_quat(rot1,theta1,quat1);
+
+  // rotmat1 = rotation matrix associated with quat1
+
+  double rotmat1[3][3];
+  MathExtra::quat_to_mat(quat1,rotmat1);
+
+  // B1 = rotation of B by quat1 rotation matrix
+
+  double b1[3];
+  MathExtra::matvec(rotmat1,b,b1);
+
+  // quat2 = rotation to convert B1 into B' in xy plane
+  // Byz1 = projection of B1 into yz plane
+  // +xaxis = unit vector to rotate B1 around
+  // theta2 = angle of rotation calculated from
+  //   Byz1 dot yunit = B1y = |Byz1| cos(theta2)
+  // theta2 via acos() is positive (0 to PI)
+  //   positive is valid if B1z < 0.0 else flip sign of theta2
+
+  double byzvec1[3],quat2[4];
+  MathExtra::copy3(b1,byzvec1);
+  byzvec1[0] = 0.0;
+  double byzvec1_len = MathExtra::len3(byzvec1);
+  double theta2 = acos(b1[1]/byzvec1_len);
+  if (b1[2] > 0.0) theta2 = -theta2;
+  MathExtra::axisangle_to_quat(xaxis,theta2,quat2);
+
+  // quat_single = rotation via single quat = quat2 * quat1
+  // quat_r2g = rotation from restricted to general
+  // rotmat = general to restricted rotation matrix
+
+  double quat_single[4];
+  MathExtra::quatquat(quat2,quat1,quat_single);
+  MathExtra::quat_to_mat(quat_single,rotmat);
+
+  // rotate general ABC to restricted triclinic A'B'C'
+
+  MathExtra::matvec(rotmat,a,aprime);
+  MathExtra::matvec(rotmat,b,bprime);
+  MathExtra::matvec(rotmat,c,cprime);
+}
+
+/* ----------------------------------------------------------------------
+   transform atom coords from general triclinic to restricted triclinic
+------------------------------------------------------------------------- */
+
+void Domain::general_to_restricted_coords(double *x)
+{
+  double xshift[3],xnew[3];
+
+  xshift[0] = x[0] - boxlo[0];
+  xshift[1] = x[1] - boxlo[1];
+  xshift[2] = x[2] - boxlo[2];
+  MathExtra::matvec(rotate_g2r,xshift,xnew);
+  x[0] = xnew[0] + boxlo[0];
+  x[1] = xnew[1] + boxlo[1];
+  x[2] = xnew[2] + boxlo[2];
+}
+
+/* ----------------------------------------------------------------------
+   transform atom coords from restricted triclinic to general triclinic
+------------------------------------------------------------------------- */
+
+void Domain::restricted_to_general_coords(double *x)
+{
+  double xshift[3],xnew[3];
+
+  xshift[0] = x[0] - boxlo[0];
+  xshift[1] = x[1] - boxlo[1];
+  xshift[2] = x[2] - boxlo[2];
+  MathExtra::matvec(rotate_r2g,xshift,xnew);
+  x[0] = xnew[0] + boxlo[0];
+  x[1] = xnew[1] + boxlo[1];
+  x[2] = xnew[2] + boxlo[2];
+}
+
+void Domain::restricted_to_general_coords(double *x, double *xnew)
+{
+  double xshift[3];
+
+  xshift[0] = x[0] - boxlo[0];
+  xshift[1] = x[1] - boxlo[1];
+  xshift[2] = x[2] - boxlo[2];
+  MathExtra::matvec(rotate_r2g,xshift,xnew);
+  xnew[0] += boxlo[0];
+  xnew[1] += boxlo[1];
+  xnew[2] += boxlo[2];
+}
+
+/* ----------------------------------------------------------------------
+   transform atom vector from general triclinic to restricted triclinic
+------------------------------------------------------------------------- */
+
+void Domain::general_to_restricted_vector(double *v)
+{
+  double vnew[3];
+
+  MathExtra::matvec(rotate_g2r,v,vnew);
+  v[0] = vnew[0];
+  v[1] = vnew[1];
+  v[2] = vnew[2];
+}
+
+/* ----------------------------------------------------------------------
+   transform atom vector from restricted triclinic to general triclinic
+------------------------------------------------------------------------- */
+
+void Domain::restricted_to_general_vector(double *v)
+{
+  double vnew[3];
+
+  MathExtra::matvec(rotate_r2g,v,vnew);
+  v[0] = vnew[0];
+  v[1] = vnew[1];
+  v[2] = vnew[2];
+}
+
+void Domain::restricted_to_general_vector(double *v, double *vnew)
+{
+  MathExtra::matvec(rotate_r2g,v,vnew);
+}
+
+/* ----------------------------------------------------------------------
    enforce PBC and modify box image flags for each atom
    called every reneighboring and by other commands that change atoms
    resulting coord must satisfy lo <= coord < hi
@@ -552,7 +787,7 @@ void Domain::pbc()
   int flag = 0;
   for (i = 0; i < n3; i++)
     if (!std::isfinite(*coord++)) flag = 1;
-  if (flag) error->one(FLERR,"Non-numeric atom coords - simulation unstable");
+  if (flag) error->one(FLERR,"Non-numeric atom coords - simulation unstable" + utils::errorurl(6));
 
   // setup for PBC checks
 
@@ -680,9 +915,7 @@ int Domain::inside(double* x)
         lamda[1] < lo[1] || lamda[1] >= hi[1] ||
         lamda[2] < lo[2] || lamda[2] >= hi[2]) return 0;
     else return 1;
-
   }
-
 }
 
 /* ----------------------------------------------------------------------
@@ -717,7 +950,6 @@ int Domain::inside_nonperiodic(double* x)
     if (!zperiodic && (lamda[2] < lo[2] || lamda[2] >= hi[2])) return 0;
     return 1;
   }
-
 }
 
 /* ----------------------------------------------------------------------
@@ -796,7 +1028,8 @@ void Domain::image_check()
       if (k == -1) {
         nmissing++;
         if (lostbond == Thermo::ERROR)
-          error->one(FLERR,"Bond atom missing in image check");
+          error->one(FLERR, Error::NOLASTLINE,
+                     "Bond atom missing in image check" + utils::errorurl(14));
         continue;
       }
 
@@ -816,13 +1049,13 @@ void Domain::image_check()
   int flagall;
   MPI_Allreduce(&flag,&flagall,1,MPI_INT,MPI_MAX,world);
   if (flagall && comm->me == 0)
-    error->warning(FLERR,"Inconsistent image flags");
+    error->warning(FLERR,"Inconsistent image flags" + utils::errorurl(27));
 
   if (lostbond == Thermo::WARN) {
     int all;
     MPI_Allreduce(&nmissing,&all,1,MPI_INT,MPI_SUM,world);
     if (all && comm->me == 0)
-      error->warning(FLERR,"Bond atom missing in image check");
+      error->warning(FLERR, "Bond atom missing in image check" + utils::errorurl(14));
   }
 
   memory->destroy(unwrap);
@@ -895,14 +1128,15 @@ void Domain::box_too_small_check()
       if (k == -1) {
         nmissing++;
         if (lostbond == Thermo::ERROR)
-          error->one(FLERR,"Bond atom missing in box size check");
+          error->one(FLERR, Error::NOLASTLINE,
+                     "Bond atom missing in box size check" + utils::errorurl(14));
         continue;
       }
 
       delx = x[i][0] - x[k][0];
       dely = x[i][1] - x[k][1];
       delz = x[i][2] - x[k][2];
-      minimum_image(delx,dely,delz);
+      minimum_image(FLERR, delx,dely,delz);
       rsq = delx*delx + dely*dely + delz*delz;
       maxbondme = MAX(maxbondme,rsq);
     }
@@ -912,7 +1146,7 @@ void Domain::box_too_small_check()
     int all;
     MPI_Allreduce(&nmissing,&all,1,MPI_INT,MPI_SUM,world);
     if (all && comm->me == 0)
-      error->warning(FLERR,"Bond atom missing in box size check");
+      error->warning(FLERR,"Bond atom missing in box size check" + utils::errorurl(14));
   }
 
   double maxbondall;
@@ -971,6 +1205,7 @@ void Domain::subbox_too_small_check(double thresh)
                    "could lead to lost atoms");
 }
 
+// clang-format on
 /* ----------------------------------------------------------------------
    minimum image convention in periodic dimensions
    use 1/2 of box size as test
@@ -978,36 +1213,51 @@ void Domain::subbox_too_small_check(double thresh)
    changed "if" to "while" to enable distance to
      far-away ghost atom returned by atom->map() to be wrapped back into box
      could be problem for looking up atom IDs when cutoff > boxsize
-   this should not be used if atom has moved infinitely far outside box
-     b/c while could iterate forever
-     e.g. fix shake prediction of new position with highly overlapped atoms
-     use minimum_image_once() instead
+   should be used for most cases where the difference in the image count
+     is small (usually 0 or 1)
+   use minimum_image_big() when a large difference between image counts is expected
 ------------------------------------------------------------------------- */
 
-void Domain::minimum_image(double &dx, double &dy, double &dz)
+static constexpr double MAXIMGCOUNT = 16;
+void Domain::minimum_image(const std::string &file, int line, double &dx, double &dy,
+                           double &dz) const
 {
   if (triclinic == 0) {
     if (xperiodic) {
+      if (fabs(dx) > (MAXIMGCOUNT * xprd))
+        error->one(file, line, "Atoms have moved too far apart ({}) for minimum image\n", dx);
       while (fabs(dx) > xprd_half) {
-        if (dx < 0.0) dx += xprd;
-        else dx -= xprd;
+        if (dx < 0.0)
+          dx += xprd;
+        else
+          dx -= xprd;
       }
     }
     if (yperiodic) {
+      if (fabs(dy) > (MAXIMGCOUNT * yprd))
+        error->one(file, line, "Atoms have moved too far apart ({}) for minimum image\n", dy);
       while (fabs(dy) > yprd_half) {
-        if (dy < 0.0) dy += yprd;
-        else dy -= yprd;
+        if (dy < 0.0)
+          dy += yprd;
+        else
+          dy -= yprd;
       }
     }
     if (zperiodic) {
+      if (fabs(dz) > (MAXIMGCOUNT * zprd))
+        error->one(file, line, "Atoms have moved too far apart ({}) for minimum image\n", dz);
       while (fabs(dz) > zprd_half) {
-        if (dz < 0.0) dz += zprd;
-        else dz -= zprd;
+        if (dz < 0.0)
+          dz += zprd;
+        else
+          dz -= zprd;
       }
     }
 
   } else {
     if (zperiodic) {
+      if (fabs(dz) > (MAXIMGCOUNT * zprd))
+        error->one(file, line, "Atoms have moved too far apart ({}) for minimum image\n", dz);
       while (fabs(dz) > zprd_half) {
         if (dz < 0.0) {
           dz += zprd;
@@ -1021,6 +1271,8 @@ void Domain::minimum_image(double &dx, double &dy, double &dz)
       }
     }
     if (yperiodic) {
+      if (fabs(dy) > (MAXIMGCOUNT * yprd))
+        error->one(file, line, "Atoms have moved too far apart ({}) for minimum image\n", dy);
       while (fabs(dy) > yprd_half) {
         if (dy < 0.0) {
           dy += yprd;
@@ -1032,9 +1284,13 @@ void Domain::minimum_image(double &dx, double &dy, double &dz)
       }
     }
     if (xperiodic) {
+      if (fabs(dx) > (MAXIMGCOUNT * xprd))
+        error->one(file, line, "Atoms have moved too far apart ({}) for minimum image\n", dx);
       while (fabs(dx) > xprd_half) {
-        if (dx < 0.0) dx += xprd;
-        else dx -= xprd;
+        if (dx < 0.0)
+          dx += xprd;
+        else
+          dx -= xprd;
       }
     }
   }
@@ -1044,135 +1300,70 @@ void Domain::minimum_image(double &dx, double &dy, double &dz)
    minimum image convention in periodic dimensions
    use 1/2 of box size as test
    for triclinic, also add/subtract tilt factors in other dims as needed
-   changed "if" to "while" to enable distance to
+   allow multiple box lengths to enable distance to
      far-away ghost atom returned by atom->map() to be wrapped back into box
      could be problem for looking up atom IDs when cutoff > boxsize
-   this should not be used if atom has moved infinitely far outside box
-     b/c while could iterate forever
-     e.g. fix shake prediction of new position with highly overlapped atoms
-     use minimum_image_once() instead
+   this should be used when there is a large image count difference possible
+     this applies for example to fix rigid/small
 ------------------------------------------------------------------------- */
 
-void Domain::minimum_image(double *delta)
+void Domain::minimum_image_big(const std::string &file, int line, double &dx, double &dy,
+                               double &dz) const
 {
   if (triclinic == 0) {
     if (xperiodic) {
-      while (fabs(delta[0]) > xprd_half) {
-        if (delta[0] < 0.0) delta[0] += xprd;
-        else delta[0] -= xprd;
-      }
+      double dfactor = dx / xprd + 0.5;
+      if (dx < 0) dfactor -= 1.0;
+      if (dfactor > MAXSMALLINT)
+        error->one(file, line, "Atoms have moved too far apart ({}) for minimum image\n", dx);
+      dx -= xprd * static_cast<int>(dfactor);
     }
     if (yperiodic) {
-      while (fabs(delta[1]) > yprd_half) {
-        if (delta[1] < 0.0) delta[1] += yprd;
-        else delta[1] -= yprd;
-      }
+      double dfactor = dy / yprd + 0.5;
+      if (dy < 0) dfactor -= 1.0;
+      if (dfactor > MAXSMALLINT)
+        error->one(file, line, "Atoms have moved too far apart ({}) for minimum image\n", dy);
+      dy -= yprd * static_cast<int>(dfactor);
     }
     if (zperiodic) {
-      while (fabs(delta[2]) > zprd_half) {
-        if (delta[2] < 0.0) delta[2] += zprd;
-        else delta[2] -= zprd;
-      }
+      double dfactor = dz / zprd + 0.5;
+      if (dz < 0) dfactor -= 1.0;
+      if (dfactor > MAXSMALLINT)
+        error->one(file, line, "Atoms have moved too far apart ({}) for minimum image\n", dz);
+      dz -= zprd * static_cast<int>(dfactor);
     }
 
   } else {
     if (zperiodic) {
-      while (fabs(delta[2]) > zprd_half) {
-        if (delta[2] < 0.0) {
-          delta[2] += zprd;
-          delta[1] += yz;
-          delta[0] += xz;
-        } else {
-          delta[2] -= zprd;
-          delta[1] -= yz;
-          delta[0] -= xz;
-        }
-      }
+      double dfactor = dz / zprd + 0.5;
+      if (dz < 0) dfactor -= 1.0;
+      if (dfactor > MAXSMALLINT)
+        error->one(file, line, "Atoms have moved too far apart ({}) for minimum image\n", dz);
+      int factor = static_cast<int>(dfactor);
+      dz -= zprd * factor;
+      dy -= yz * factor;
+      dx -= xz * factor;
     }
     if (yperiodic) {
-      while (fabs(delta[1]) > yprd_half) {
-        if (delta[1] < 0.0) {
-          delta[1] += yprd;
-          delta[0] += xy;
-        } else {
-          delta[1] -= yprd;
-          delta[0] -= xy;
-        }
-      }
+      double dfactor = dy / yprd + 0.5;
+      if (dy < 0) dfactor -= 1.0;
+      if (dfactor > MAXSMALLINT)
+        error->one(file, line, "Atoms have moved too far apart ({}) for minimum image\n", dy);
+      int factor = static_cast<int>(dfactor);
+      dy -= yprd * factor;
+      dx -= xy * factor;
     }
     if (xperiodic) {
-      while (fabs(delta[0]) > xprd_half) {
-        if (delta[0] < 0.0) delta[0] += xprd;
-        else delta[0] -= xprd;
-      }
+      double dfactor = dx / xprd + 0.5;
+      if (dx < 0) dfactor -= 1.0;
+      if (dfactor > MAXSMALLINT)
+        error->one(file, line, "Atoms have moved too far apart ({}) for minimum image\n", dx);
+      dx -= xprd * static_cast<int>(dfactor);
     }
   }
 }
 
-/* ----------------------------------------------------------------------
-   minimum image convention in periodic dimensions
-   use 1/2 of box size as test
-   for triclinic, also add/subtract tilt factors in other dims as needed
-   only shift by one box length in each direction
-   this should not be used if multiple box shifts are required
-------------------------------------------------------------------------- */
-
-void Domain::minimum_image_once(double *delta)
-{
-  if (triclinic == 0) {
-    if (xperiodic) {
-      if (fabs(delta[0]) > xprd_half) {
-        if (delta[0] < 0.0) delta[0] += xprd;
-        else delta[0] -= xprd;
-      }
-    }
-    if (yperiodic) {
-      if (fabs(delta[1]) > yprd_half) {
-        if (delta[1] < 0.0) delta[1] += yprd;
-        else delta[1] -= yprd;
-      }
-    }
-    if (zperiodic) {
-      if (fabs(delta[2]) > zprd_half) {
-        if (delta[2] < 0.0) delta[2] += zprd;
-        else delta[2] -= zprd;
-      }
-    }
-
-  } else {
-    if (zperiodic) {
-      if (fabs(delta[2]) > zprd_half) {
-        if (delta[2] < 0.0) {
-          delta[2] += zprd;
-          delta[1] += yz;
-          delta[0] += xz;
-        } else {
-          delta[2] -= zprd;
-          delta[1] -= yz;
-          delta[0] -= xz;
-        }
-      }
-    }
-    if (yperiodic) {
-      if (fabs(delta[1]) > yprd_half) {
-        if (delta[1] < 0.0) {
-          delta[1] += yprd;
-          delta[0] += xy;
-        } else {
-          delta[1] -= yprd;
-          delta[0] -= xy;
-        }
-      }
-    }
-    if (xperiodic) {
-      if (fabs(delta[0]) > xprd_half) {
-        if (delta[0] < 0.0) delta[0] += xprd;
-        else delta[0] -= xprd;
-      }
-    }
-  }
-}
-
+// clang-format off
 /* ----------------------------------------------------------------------
    return local index of atom J or any of its images that is closest to atom I
    if J is not a valid index like -1, just return it
@@ -1245,7 +1436,7 @@ int Domain::closest_image(const double * const pos, int j)
 /* ----------------------------------------------------------------------
    find and return Xj image = periodic image of Xj that is closest to Xi
    for triclinic, add/subtract tilt factors in other dims as needed
-   called by ServerMD class and LammpsInterface in lib/atc.
+   called by ServerMD class and LammpsInterface in lib/atc
 ------------------------------------------------------------------------- */
 
 void Domain::closest_image(const double * const xi, const double * const xj, double * const xjimage)
@@ -1486,6 +1677,25 @@ void Domain::remap(double *x)
 }
 
 /* ----------------------------------------------------------------------
+   remap all points into the periodic box no matter how far away
+   adjust 3 image flags encoded in image accordingly
+   resulting coord must satisfy lo <= coord < hi
+   MAX is important since coord - prd < lo can happen when coord = hi
+   for triclinic, point is converted to lamda coords (0-1) within remap()
+   image = 10 bits for each dimension
+   increment/decrement in wrap-around fashion
+------------------------------------------------------------------------- */
+
+void Domain::remap_all()
+{
+  double **x = atom->x;
+  imageint *image = atom->image;
+  int nlocal = atom->nlocal;
+
+  for (int i = 0; i < nlocal; i++) remap(x[i],image[i]);
+}
+
+/* ----------------------------------------------------------------------
    remap xnew to be within half box length of xold
    do it directly, not iteratively, in case is far away
    for triclinic, both points are converted to lamda coords (0-1) before remap
@@ -1557,6 +1767,29 @@ void Domain::remap_near(double *xnew, double *xold)
   }
 
   if (triclinic) lamda2x(coordnew,xnew);
+}
+
+/* ----------------------------------------------------------------------
+   remap the point to specific image flags
+   x overwritten with result, reset image flag
+   for triclinic, use h[] to add in tilt factors in other dims as needed
+------------------------------------------------------------------------- */
+
+void Domain::unmap_inv(double *x, imageint image)
+{
+  int xbox = (image & IMGMASK) - IMGMAX;
+  int ybox = (image >> IMGBITS & IMGMASK) - IMGMAX;
+  int zbox = (image >> IMG2BITS) - IMGMAX;
+
+  if (triclinic == 0) {
+    x[0] -= xbox*xprd;
+    x[1] -= ybox*yprd;
+    x[2] -= zbox*zprd;
+  } else {
+    x[0] -= h[0]*xbox + h[5]*ybox + h[4]*zbox;
+    x[1] -= h[1]*ybox + h[3]*zbox;
+    x[2] -= h[2]*zbox;
+  }
 }
 
 /* ----------------------------------------------------------------------
@@ -1744,7 +1977,7 @@ void Domain::set_lattice(int narg, char **arg)
 
 void Domain::add_region(int narg, char **arg)
 {
-  if (narg < 2) error->all(FLERR,"Illegal region command");
+  if (narg < 2) utils::missing_cmd_args(FLERR, "region", error);
 
   if (strcmp(arg[1],"delete") == 0) {
     delete_region(arg[0]);
@@ -1760,8 +1993,8 @@ void Domain::add_region(int narg, char **arg)
   Region *newregion = nullptr;
 
   if (lmp->suffix_enable) {
-    if (lmp->suffix) {
-      std::string estyle = std::string(arg[1]) + "/" + lmp->suffix;
+    if (lmp->non_pair_suffix()) {
+      std::string estyle = std::string(arg[1]) + "/" + lmp->non_pair_suffix();
       if (region_map->find(estyle) != region_map->end()) {
         RegionCreator &region_creator = (*region_map)[estyle];
         newregion = region_creator(lmp, narg, arg);
@@ -1806,7 +2039,7 @@ void Domain::delete_region(Region *reg)
 
 void Domain::delete_region(const std::string &id)
 {
-  auto reg = get_region_by_id(id);
+  auto *reg = get_region_by_id(id);
   if (!reg) error->all(FLERR,"Delete region {} does not exist", id);
   delete_region(reg);
 }
@@ -1818,7 +2051,7 @@ void Domain::delete_region(const std::string &id)
 
 Region *Domain::get_region_by_id(const std::string &name) const
 {
-  for (auto &reg : regions)
+  for (const auto &reg : regions)
     if (name == reg->id) return reg;
   return nullptr;
 }
@@ -1833,7 +2066,7 @@ const std::vector<Region *> Domain::get_region_by_style(const std::string &name)
   std::vector<Region *> matches;
   if (name.empty()) return matches;
 
-  for (auto &reg : regions)
+  for (const auto &reg : regions)
     if (name == reg->style)  matches.push_back(reg);
 
   return matches;
@@ -1856,7 +2089,7 @@ const std::vector<Region *> Domain::get_region_list()
 
 void Domain::set_boundary(int narg, char **arg, int flag)
 {
-  if (narg != 3) error->all(FLERR,"Illegal boundary command");
+  if (narg != 3) error->all(FLERR,"Illegal boundary command: expected 3 arguments but found {}", narg);
 
   char c;
   for (int idim = 0; idim < 3; idim++)
@@ -1870,8 +2103,8 @@ void Domain::set_boundary(int narg, char **arg, int flag)
       else if (c == 's') boundary[idim][iside] = 2;
       else if (c == 'm') boundary[idim][iside] = 3;
       else {
-        if (flag == 0) error->all(FLERR,"Illegal boundary command");
-        if (flag == 1) error->all(FLERR,"Illegal change_box command");
+        if (flag == 0) error->all(FLERR,"Unknown boundary keyword: {}", c);
+        if (flag == 1) error->all(FLERR,"Unknown change_box keyword: {}", c);
       }
     }
 
@@ -1926,26 +2159,6 @@ void Domain::set_boundary(int narg, char **arg, int flag)
     MPI_Allreduce(&pflag,&flag_all, 1, MPI_INT, MPI_SUM, world);
     if ((flag_all > 0) && (comm->me == 0))
       error->warning(FLERR,"Resetting image flags for non-periodic dimensions");
-  }
-}
-
-/* ----------------------------------------------------------------------
-   set domain attributes
-------------------------------------------------------------------------- */
-
-void Domain::set_box(int narg, char **arg)
-{
-  if (narg < 1) error->all(FLERR,"Illegal box command");
-
-  int iarg = 0;
-  while (iarg < narg) {
-    if (strcmp(arg[iarg],"tilt") == 0) {
-      if (iarg+2 > narg) error->all(FLERR,"Illegal box command");
-      if (strcmp(arg[iarg+1],"small") == 0) tiltsmall = 1;
-      else if (strcmp(arg[iarg+1],"large") == 0) tiltsmall = 0;
-      else error->all(FLERR,"Illegal box command");
-      iarg += 2;
-    } else error->all(FLERR,"Illegal box command");
   }
 }
 
@@ -2007,6 +2220,19 @@ void Domain::lamda2x(int n)
   }
 }
 
+void Domain::lamda2x(int n, int groupbit)
+{
+  double **x = atom->x;
+  int *mask = atom->mask;
+
+  for (int i = 0; i < n; i++)
+    if (mask[i] & groupbit) {
+      x[i][0] = h[0]*x[i][0] + h[5]*x[i][1] + h[4]*x[i][2] + boxlo[0];
+      x[i][1] = h[1]*x[i][1] + h[3]*x[i][2] + boxlo[1];
+      x[i][2] = h[2]*x[i][2] + boxlo[2];
+    }
+}
+
 /* ----------------------------------------------------------------------
    convert box coords to triclinic 0-1 lamda coords for all N atoms
    lamda = H^-1 (x - x0)
@@ -2026,6 +2252,25 @@ void Domain::x2lamda(int n)
     x[i][1] = h_inv[1]*delta[1] + h_inv[3]*delta[2];
     x[i][2] = h_inv[2]*delta[2];
   }
+}
+
+void Domain::x2lamda(int n, int groupbit)
+{
+  double delta[3];
+  double **x = atom->x;
+  int *mask = atom->mask;
+
+  for (int i = 0; i < n; i++)
+    if (mask[i] & groupbit) {
+      delta[0] = x[i][0] - boxlo[0];
+      delta[1] = x[i][1] - boxlo[1];
+      delta[2] = x[i][2] - boxlo[2];
+
+      x[i][0] = h_inv[0]*delta[0] + h_inv[5]*delta[1] + h_inv[4]*delta[2];
+      x[i][1] = h_inv[1]*delta[1] + h_inv[3]*delta[2];
+      x[i][2] = h_inv[2]*delta[2];
+    }
+
 }
 
 /* ----------------------------------------------------------------------

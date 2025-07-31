@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -17,7 +17,7 @@
 #include "atom.h"
 #include "domain.h"
 #include "error.h"
-#include "fix_store.h"
+#include "fix_store_atom.h"
 #include "group.h"
 #include "input.h"
 #include "memory.h"
@@ -74,8 +74,8 @@ ComputeDisplaceAtom::ComputeDisplaceAtom(LAMMPS *lmp, int narg, char **arg) :
   // id = compute-ID + COMPUTE_STORE, fix group = compute group
 
   id_fix = utils::strdup(std::string(id) + "_COMPUTE_STORE");
-  fix = dynamic_cast<FixStore *>( modify->add_fix(fmt::format("{} {} STORE peratom 1 3",
-                                                 id_fix, group->names[igroup])));
+  fix = dynamic_cast<FixStoreAtom *>(
+    modify->add_fix(fmt::format("{} {} STORE/ATOM 3 0 0 1", id_fix, group->names[igroup])));
 
   // calculate xu,yu,zu for fix store array
   // skip if reset from restart file
@@ -120,7 +120,7 @@ void ComputeDisplaceAtom::init()
 {
   // set fix which stores original atom coords
 
-  fix = dynamic_cast<FixStore *>( modify->get_fix_by_id(id_fix));
+  fix = dynamic_cast<FixStoreAtom *>(modify->get_fix_by_id(id_fix));
   if (!fix) error->all(FLERR,"Could not find compute displace/atom fix with ID {}", id_fix);
 
   if (refreshflag) {
@@ -232,7 +232,7 @@ void ComputeDisplaceAtom::refresh()
   int nlocal = atom->nlocal;
 
   for (int i = 0; i < nlocal; i++)
-    if (varatom[i]) domain->unmap(x[i],image[i],xoriginal[i]);
+    if (varatom[i] != 0.0) domain->unmap(x[i],image[i],xoriginal[i]);
 }
 
 /* ----------------------------------------------------------------------

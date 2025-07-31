@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -52,25 +52,26 @@ enum { BIG_MOVE, SRD_MOVE, SRD_ROTATE };
 enum { CUBIC_ERROR, CUBIC_WARN };
 enum { SHIFT_NO, SHIFT_YES, SHIFT_POSSIBLE };
 
-#define EINERTIA 0.2    // moment of inertia prefactor for ellipsoid
+static constexpr double EINERTIA = 0.2;    // moment of inertia prefactor for ellipsoid
 
-#define ATOMPERBIN 30
-#define BIG 1.0e20
-#define VBINSIZE 5
-#define TOLERANCE 0.00001
-#define MAXITER 20
+static constexpr int ATOMPERBIN = 30;
+static constexpr double BIG = 1.0e20;
+static constexpr int VBINSIZE = 5;
+static constexpr double TOLERANCE = 0.00001;
+static constexpr int MAXITER = 20;
 
-static const char cite_fix_srd[] = "fix srd command:\n\n"
-                                   "@Article{Petersen10,\n"
-                                   " author = {M. K. Petersen, J. B. Lechman, S. J. Plimpton, G. "
-                                   "S. Grest, P. J. in 't Veld, P. R. Schunk},\n"
-                                   " title =   {Mesoscale Hydrodynamics via Stochastic Rotation "
-                                   "Dynamics: Comparison with Lennard-Jones Fluid},"
-                                   " journal = {J.~Chem.~Phys.},\n"
-                                   " year =    2010,\n"
-                                   " volume =  132,\n"
-                                   " pages =   {174106}\n"
-                                   "}\n\n";
+static const char cite_fix_srd[] =
+    "fix srd command: doi:10.1063/1.3419070\n\n"
+    "@Article{Petersen10,\n"
+    " author = {M. K. Petersen and J. B. Lechman and S. J. Plimpton and\n"
+    " G. S. Grest and in 't Veld, P. J. and P. R. Schunk},\n"
+    " title =   {Mesoscale Hydrodynamics via Stochastic Rotation\n"
+    "    Dynamics: Comparison with {L}ennard-{J}ones Fluid},\n"
+    " journal = {J.~Chem.\\ Phys.},\n"
+    " year =    2010,\n"
+    " volume =  132,\n"
+    " pages =   174106\n"
+    "}\n\n";
 
 //#define SRD_DEBUG 1
 //#define SRD_DEBUG_ATOMID 58
@@ -354,7 +355,7 @@ void FixSRD::init()
     error->all(FLERR, "Fix srd no-slip requires atom attribute torque");
   if (initflag && update->dt != dt_big)
     error->all(FLERR, "Cannot change timestep once fix srd is setup");
-  if (comm->style != 0)
+  if (comm->style != Comm::BRICK)
     error->universe_all(FLERR, "Fix srd can only currently be used with comm_style brick");
 
   // orthogonal vs triclinic simulation box
@@ -394,7 +395,7 @@ void FixSRD::init()
     if (fixes[i]->box_change & BOX_CHANGE_SHAPE) change_shape = 1;
     if (strcmp(fixes[i]->style, "deform") == 0) {
       deformflag = 1;
-      auto deform = dynamic_cast<FixDeform *>(modify->fix[i]);
+      auto *deform = dynamic_cast<FixDeform *>(modify->fix[i]);
       if ((deform->box_change & BOX_CHANGE_SHAPE) && deform->remapflag != Domain::V_REMAP)
         error->all(FLERR, "Using fix srd with inconsistent fix deform remap option");
     }
@@ -607,7 +608,7 @@ void FixSRD::pre_neighbor()
 
   // map each wall to search bins it covers, up to non-periodic boundary
   // if wall moves, add walltrigger to its position
-  // this insures it is added to all search bins it may move into
+  // this ensures it is added to all search bins it may move into
   // may not overlap any of my search bins
 
   if (wallexist) {
@@ -673,7 +674,7 @@ void FixSRD::pre_neighbor()
           hi = nbin2z - 1;
         }
 
-        for (iz = lo; iz < hi; iz++)
+        for (iz = lo; iz <= hi; iz++)
           for (ix = 0; ix < nbin2x; ix++)
             for (iy = 0; iy < nbin2y; iy++) {
               ibin = iz * nbin2y * nbin2x + iy * nbin2x + ix;
@@ -1422,6 +1423,7 @@ void FixSRD::collisions_multi()
   tagint *tag = atom->tag;
   int *mask = atom->mask;
   int nlocal = atom->nlocal;
+  Big* bigfirst;
 
   for (i = 0; i < nlocal; i++) {
     if (!(mask[i] & groupbit)) continue;
@@ -1431,6 +1433,7 @@ void FixSRD::collisions_multi()
 
     ibounce = 0;
     jlast = -1;
+    typefirst = -1;
     dt = dt_big;
 
     while (true) {
@@ -1442,8 +1445,8 @@ void FixSRD::collisions_multi()
         k = binbig[ibin][m];
         big = &biglist[k];
         j = big->index;
-        if (j == jlast) continue;
         type = big->type;
+        if ((j == jlast) && (type == typefirst)) continue;
 
         if (type == SPHERE)
           inside = inside_sphere(x[i], x[j], big);
@@ -1497,6 +1500,7 @@ void FixSRD::collisions_multi()
             t_first = t_remain;
             jfirst = j;
             typefirst = type;
+            bigfirst = big;
             xscollfirst[0] = xscoll[0];
             xscollfirst[1] = xscoll[1];
             xscollfirst[2] = xscoll[2];
@@ -1513,6 +1517,7 @@ void FixSRD::collisions_multi()
       if (t_first == 0.0) break;
       j = jlast = jfirst;
       type = typefirst;
+      big = bigfirst;
       xscoll[0] = xscollfirst[0];
       xscoll[1] = xscollfirst[1];
       xscoll[2] = xscollfirst[2];
@@ -2644,7 +2649,6 @@ void FixSRD::parameterize()
         if (radius && radius[i] > 0.0) {
           double r = radfactor * radius[i];
           volbig += 4.0 / 3.0 * MY_PI * r * r * r;
-          ;
         } else if (ellipsoid && ellipsoid[i] >= 0) {
           double *shape = ebonus[ellipsoid[i]].shape;
           volbig += 4.0 / 3.0 * MY_PI * shape[0] * shape[1] * shape[2] * radfactor * radfactor *
@@ -2657,7 +2661,7 @@ void FixSRD::parameterize()
           MathExtra::sub3(c2, c1, c2mc1);
           MathExtra::sub3(c3, c1, c3mc1);
           MathExtra::cross3(c2mc1, c3mc1, cross);
-          volbig += 0.5 * MathExtra::len3(cross);
+          volbig += 0.5 * MathExtra::len3(cross) * WIDTH;
         }
       }
   } else {
@@ -3109,9 +3113,9 @@ void FixSRD::setup_velocity_bins()
 {
   // require integer # of bins across global domain
 
-  nbin1x = static_cast<int>(domain->xprd / gridsrd + 0.5);
-  nbin1y = static_cast<int>(domain->yprd / gridsrd + 0.5);
-  nbin1z = static_cast<int>(domain->zprd / gridsrd + 0.5);
+  nbin1x = std::lround(domain->xprd / gridsrd);
+  nbin1y = std::lround(domain->yprd / gridsrd);
+  nbin1z = std::lround(domain->zprd / gridsrd);
   if (dimension == 2) nbin1z = 1;
 
   if (nbin1x == 0) nbin1x = 1;
@@ -3952,7 +3956,7 @@ void FixSRD::print_collision(int i, int j, int ibounce, double t_remain, double 
   double **v = atom->v;
 
   if (type != WALL) {
-    fmt::print("COLLISION between SRD {} and BIG {}\n", atom->tag[i], atom->tag[j]);
+    utils::print("COLLISION between SRD {} and BIG {}\n", atom->tag[i], atom->tag[j]);
     printf("  bounce # = %d\n", ibounce + 1);
     printf("  local indices: %d %d\n", i, j);
     printf("  timestep = %g\n", dt);
@@ -3993,7 +3997,7 @@ void FixSRD::print_collision(int i, int j, int ibounce, double t_remain, double 
   } else {
     int dim = wallwhich[j] / 2;
 
-    fmt::print("COLLISION between SRD {} and WALL {}\n", atom->tag[i], j);
+    utils::print("COLLISION between SRD {} and WALL {}\n", atom->tag[i], j);
     printf("  bounce # = %d\n", ibounce + 1);
     printf("  local indices: %d %d\n", i, j);
     printf("  timestep = %g\n", dt);

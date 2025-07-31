@@ -1,7 +1,7 @@
 /* -*- c++ -*- -------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   Steve Plimpton, sjplimp@sandia.gov
+   LAMMPS development team: developers@lammps.org
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -40,7 +40,8 @@ class VerletSplit : public Verlet {
   int ratio;                             // ratio of Rspace procs to Kspace procs
   int *qsize, *qdisp, *xsize, *xdisp;    // MPI gather/scatter params for block comm
   MPI_Comm block;                        // communicator within one block
-  int tip4p_flag;                        // 1 if PPPM/tip4p so do extra comm
+
+  int tip4pflag;                         // 1 if Kspace method sets tip4pflag
 
   double **f_kspace;    // copy of Kspace forces on Rspace procs
   int maxatom;
